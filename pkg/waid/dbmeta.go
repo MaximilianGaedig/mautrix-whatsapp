@@ -27,6 +27,8 @@ import (
 	"go.mau.fi/util/random"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/types"
+
+	"go.mau.fi/mautrix-whatsapp/pkg/album"
 )
 
 type UserLoginMetadata struct {
@@ -96,6 +98,10 @@ type MessageMetadata struct {
 	DirectMediaMeta  json.RawMessage   `json:"direct_media_meta,omitempty"`
 	IsMatrixPoll     bool              `json:"is_matrix_poll,omitzero"`
 	Edits            []types.MessageID `json:"edits,omitempty"`
+	// Album is the fi.mau.album info of album items.
+	Album *album.Info `json:"album,omitempty"`
+	// AlbumExpectedCount is the expected item count stored on album parent messages.
+	AlbumExpectedCount int `json:"album_expected_count,omitzero"`
 }
 
 func (mm *MessageMetadata) CopyFrom(other any) {
@@ -115,6 +121,12 @@ func (mm *MessageMetadata) CopyFrom(other any) {
 		mm.GroupInvite = otherMM.GroupInvite
 	}
 	mm.IsMatrixPoll = mm.IsMatrixPoll || otherMM.IsMatrixPoll
+	if otherMM.Album != nil {
+		mm.Album = otherMM.Album
+	}
+	if otherMM.AlbumExpectedCount != 0 {
+		mm.AlbumExpectedCount = otherMM.AlbumExpectedCount
+	}
 }
 
 type ReactionMetadata struct {

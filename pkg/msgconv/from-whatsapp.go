@@ -237,6 +237,7 @@ func (mc *MessageConverter) ToMatrix(
 	}
 	dbMeta := part.DBMetadata.(*waid.MessageMetadata)
 	dbMeta.SenderDeviceID = info.Sender.Device
+	mc.addAlbumInfo(ctx, portal, client, info, waMsg, rawWaMsg, part, dbMeta)
 	if info.IsIncomingBroadcast() {
 		dbMeta.BroadcastListJID = &info.Chat
 		if part.Extra == nil {
