@@ -35,6 +35,7 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/format"
 
+	"go.mau.fi/mautrix-whatsapp/pkg/album"
 	"go.mau.fi/mautrix-whatsapp/pkg/msgconv"
 	"go.mau.fi/mautrix-whatsapp/pkg/waid"
 )
@@ -209,6 +210,14 @@ func (evt *WAMessageEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Por
 		evt.wa.Main.AddMediaEditCache(portal, cacheMessage, cm.Parts[0])
 	}
 	editPart := cm.Parts[0].ToEditPart(existing[0])
+	if existingAlbum := existing[0].Metadata.(*waid.MessageMetadata).Album; existingAlbum != nil && album.IsMediaPart(cm.Parts[0]) {
+		// Edits (captions, HD replacements) don't carry the album association,
+		// so copy the album info from the original message.
+		if editPart.Extra == nil {
+			editPart.Extra = make(map[string]any)
+		}
+		editPart.Extra[album.FieldKey] = existingAlbum
+	}
 	if evt.isUndecryptableUpsertSubEvent || evt.dontRenderEdited {
 		if editPart.TopLevelExtra == nil {
 			editPart.TopLevelExtra = make(map[string]any)

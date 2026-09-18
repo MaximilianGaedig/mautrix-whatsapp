@@ -25,6 +25,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2/simplevent"
 
 	"go.mau.fi/mautrix-whatsapp/pkg/connector/wadb"
+	"go.mau.fi/mautrix-whatsapp/pkg/msgconv"
 	"go.mau.fi/mautrix-whatsapp/pkg/waid"
 )
 
@@ -610,6 +611,9 @@ func (wa *WhatsAppClient) convertHistorySyncMessages(
 	convertedMessages := make([]*bridgev2.BackfillMessage, 0, len(messages))
 	var mediaRequests []*wadb.MediaRequest
 	dups := make(exmaps.Set[networkid.MessageID])
+	chronological := slices.Clone(messages)
+	slices.Reverse(chronological)
+	ctx = msgconv.WithAlbumBatch(ctx, msgconv.NewAlbumBatch(chronological))
 	for i, msg := range messages {
 		evt, err := wa.Client.ParseWebMessage(portalJID, msg)
 		if err != nil {
