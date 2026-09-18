@@ -46,6 +46,7 @@ import (
 
 	"go.mau.fi/mautrix-whatsapp/pkg/connector/wadb"
 	"go.mau.fi/mautrix-whatsapp/pkg/msgconv"
+	"go.mau.fi/mautrix-whatsapp/pkg/presence"
 )
 
 type WhatsAppConnector struct {
@@ -63,6 +64,8 @@ type WhatsAppConnector struct {
 	stopMediaEditCacheLoop atomic.Pointer[context.CancelFunc]
 
 	unmigratedDMs *exsync.Set[networkid.PortalKey]
+
+	presence *presence.Manager
 }
 
 func init() {
@@ -164,6 +167,7 @@ func (wa *WhatsAppConnector) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to migrate to LID DMs: %w", err)
 	}
+	wa.startPresence()
 	go func() {
 		err = wa.syncMismatchingGhosts(wa.Bridge.BackgroundCtx)
 		if err != nil {

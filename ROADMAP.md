@@ -42,7 +42,7 @@
   * [x] Message deletions
   * [x] Reactions
   * [x] Avatars
-  * [ ] Presence
+  * [x] Presence (opt-in, `presence_bridging`)
   * [x] Typing notifications
   * [x] Read receipts
   * [x] Admin/superadmin status

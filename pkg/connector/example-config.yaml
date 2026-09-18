@@ -25,8 +25,25 @@ call_start_notices: true
 # Should another user's cryptographic identity changing send a message to Matrix?
 identity_change_notices: false
 # Should the bridge mark you as online on WhatsApp when you send typing notifications?
-# Full presence bridging is not supported.
 send_presence_on_typing: false
+
+# Should WhatsApp contacts' online/last seen status be bridged to Matrix presence?
+# WhatsApp only sends other users' presence to devices that are themselves
+# online, so enabling this makes the bridge keep your account marked as
+# "online" on WhatsApp the entire time it's connected. Your contacts will see
+# you as online, and your phone may not get push notifications while the
+# bridge is online. Users who hide their last seen or online status are never
+# reported online.
+presence_bridging: false
+# Maximum number of DM contacts per login to subscribe to. The most recently
+# read DMs are subscribed on connect, others when they message you.
+presence_max_subscriptions: 100
+# How often to re-send "online" to the homeserver while the contact is online.
+# Must be lower than the homeserver's idle timeout (tuwunel:
+# presence_idle_timeout_s, Synapse: 5 minutes).
+presence_refresh_seconds: 240
+# Global limit of presence requests per second sent to the homeserver.
+presence_max_per_second: 5
 # Should WhatsApp status messages be bridged into a Matrix room?
 enable_status_broadcast: true
 # Should sending WhatsApp status messages be allowed?

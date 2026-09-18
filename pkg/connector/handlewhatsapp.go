@@ -88,6 +88,8 @@ func (wa *WhatsAppClient) handleWAEvent(rawEvt any) (success bool) {
 		success = wa.handleWAReceipt(ctx, evt)
 	case *events.ChatPresence:
 		wa.handleWAChatPresence(ctx, evt)
+	case *events.Presence:
+		wa.handleWAPresence(ctx, evt)
 	case *events.UndecryptableMessage:
 		success = wa.handleWAUndecryptableMessage(ctx, evt)
 
@@ -151,7 +153,7 @@ func (wa *WhatsAppClient) handleWAEvent(rawEvt any) (success bool) {
 	case *events.PushNameSetting:
 		// Send presence available when connecting and when the pushname is changed.
 		// This makes sure that outgoing messages always have the right pushname.
-		err := wa.updatePresence(ctx, types.PresenceUnavailable)
+		err := wa.updatePresence(ctx, wa.ownPresence())
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to send presence after push name update")
 		}
@@ -176,9 +178,11 @@ func (wa *WhatsAppClient) handleWAEvent(rawEvt any) (success bool) {
 		wa.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
 		if len(wa.GetStore().PushName) > 0 {
 			go func() {
-				err := wa.updatePresence(ctx, types.PresenceUnavailable)
+				err := wa.updatePresence(ctx, wa.ownPresence())
 				if err != nil {
 					log.Warn().Err(err).Msg("Failed to send initial presence after connecting")
+				} else {
+					wa.subscribeRecentDMPresences(ctx)
 				}
 			}()
 			go wa.syncRemoteProfile(ctx, nil)
@@ -291,6 +295,9 @@ func (wa *WhatsAppClient) handleWAMessage(ctx context.Context, evt *events.Messa
 	}
 	if !wa.ensureAltJIDs(ctx, &evt.Info.MessageSource, true) {
 		return false
+	}
+	if !evt.Info.IsFromMe {
+		wa.subscribeChatPresence(ctx, evt.Info.Chat)
 	}
 	parsedMessageType := getMessageType(evt.Message)
 	if encReact := evt.Message.GetEncReactionMessage(); encReact != nil {

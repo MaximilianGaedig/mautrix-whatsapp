@@ -122,6 +122,7 @@ type WhatsAppClient struct {
 	isNewLogin         bool
 	pushNamesSynced    *exsync.Event
 	lastPresence       types.Presence
+	presenceSubs       presenceSubscriptions
 
 	disableNewsletter bool
 
@@ -441,7 +442,8 @@ func (wa *WhatsAppClient) syncRemoteProfile(ctx context.Context, ghost *bridgev2
 
 func (wa *WhatsAppClient) HandleMatrixViewingChat(ctx context.Context, msg *bridgev2.MatrixViewingChat) error {
 	var presence types.Presence
-	if msg.Portal != nil {
+	if msg.Portal != nil || wa.Main.presence != nil {
+		// Presence bridging requires staying available, see ownPresence.
 		presence = types.PresenceAvailable
 	} else {
 		presence = types.PresenceUnavailable

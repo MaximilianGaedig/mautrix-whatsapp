@@ -55,6 +55,11 @@ type Config struct {
 	MaxMemberSync               int           `yaml:"max_member_sync"`
 	LazyAvatars                 bool          `yaml:"lazy_avatars"`
 
+	PresenceBridging         bool    `yaml:"presence_bridging"`
+	PresenceMaxSubscriptions int     `yaml:"presence_max_subscriptions"`
+	PresenceRefreshSeconds   int     `yaml:"presence_refresh_seconds"`
+	PresenceMaxPerSecond     float64 `yaml:"presence_max_per_second"`
+
 	AnimatedSticker msgconv.AnimatedStickerConfig `yaml:"animated_sticker"`
 
 	HistorySync struct {
@@ -133,6 +138,10 @@ func upgradeConfig(helper up.Helper) {
 	helper.Copy(up.Bool, "use_whatsapp_retry_store")
 	helper.Copy(up.Int, "max_member_sync")
 	helper.Copy(up.Bool, "lazy_avatars")
+	helper.Copy(up.Bool, "presence_bridging")
+	helper.Copy(up.Int, "presence_max_subscriptions")
+	helper.Copy(up.Int, "presence_refresh_seconds")
+	helper.Copy(up.Int|up.Float, "presence_max_per_second")
 
 	helper.Copy(up.Str, "animated_sticker", "target")
 	helper.Copy(up.Int, "animated_sticker", "args", "width")
@@ -209,6 +218,7 @@ func (wa *WhatsAppConnector) GetConfig() (string, any, up.Upgrader) {
 			{"proxy"},
 			{"displayname_template"},
 			{"call_start_notices"},
+			{"presence_bridging"},
 			{"animated_sticker"},
 			{"history_sync"},
 		},
