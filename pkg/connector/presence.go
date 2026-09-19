@@ -71,6 +71,34 @@ func (wa *WhatsAppClient) ownPresence() types.Presence {
 	return types.PresenceUnavailable
 }
 
+// noteActivity marks a user online for a while after they sent a message, read ours or typed
+// (presence.Manager.Activity), under both their phone number and LID ghost.
+func (wa *WhatsAppClient) noteActivity(ctx context.Context, jid types.JID, at time.Time) {
+	if wa.Main.presence == nil || jid.IsEmpty() || wa.IsOwnJID(jid) {
+		return
+	}
+	wa.forEachGhostJID(ctx, jid, func(j types.JID) {
+		wa.Main.presence.Activity(string(waid.MakeUserID(j)), at)
+	})
+}
+
+// forEachGhostJID calls fn with the user's JID and its phone-number/LID counterpart, since ghosts
+// may exist under either (the sender skips ghosts that don't exist).
+func (wa *WhatsAppClient) forEachGhostJID(ctx context.Context, jid types.JID, fn func(types.JID)) {
+	from := jid.ToNonAD()
+	fn(from)
+	var alt types.JID
+	switch from.Server {
+	case types.DefaultUserServer:
+		alt, _ = wa.GetStore().LIDs.GetLIDForPN(ctx, from)
+	case types.HiddenUserServer:
+		alt, _ = wa.GetStore().LIDs.GetPNForLID(ctx, from)
+	}
+	if !alt.IsEmpty() {
+		fn(alt.ToNonAD())
+	}
+}
+
 func (wa *WhatsAppClient) handleWAPresence(ctx context.Context, evt *events.Presence) {
 	if wa.Main.presence == nil || wa.IsOwnJID(evt.From) {
 		return

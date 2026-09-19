@@ -109,6 +109,12 @@ func (m *Manager) Update(remoteUserID string, st State) {
 	if m == nil || remoteUserID == "" || st.Presence == "" {
 		return
 	}
+	// The homeserver's last_active_ago is the one "last seen", and every presence the bridge sets
+	// stamps it: offline is only sent when a user was seen going offline, never on first sight or
+	// again, and "unavailable" (idle) is offline too.
+	if st.Presence == event.PresenceUnavailable {
+		st.Presence = event.PresenceOffline
+	}
 	now := m.now()
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -130,6 +136,33 @@ func (m *Manager) Update(remoteUserID string, st State) {
 	e.desired = st.Presence
 	e.until = st.Until
 	e.touched = now
+}
+
+// ActivityOnline is how long someone counts as online after we saw them do something.
+const ActivityOnline = 5 * time.Minute
+
+// Activity records that a remote user did something at `at` (sent a message, typed, read ours): they
+// are online until ActivityOnline after it, which also covers users who hide their online status.
+func (m *Manager) Activity(remoteUserID string, at time.Time) {
+	if m == nil {
+		return
+	}
+	now := m.now()
+	if at.IsZero() || at.After(now) {
+		at = now
+	}
+	until := at.Add(ActivityOnline)
+	if !until.After(now) {
+		return // old news (backfill): nothing to say about now
+	}
+	m.lock.Lock()
+	e, ok := m.entries[remoteUserID]
+	// Don't cut short a longer online the network itself reported.
+	longer := ok && e.desired == event.PresenceOnline && (e.until.IsZero() || e.until.After(until))
+	m.lock.Unlock()
+	if !longer {
+		m.Update(remoteUserID, State{Presence: event.PresenceOnline, Until: until})
+	}
 }
 
 // evictOne drops a settled, non-online entry. Must hold the lock.
@@ -162,7 +195,7 @@ func (m *Manager) Tick(ctx context.Context) {
 	m.lock.Lock()
 	for k, e := range m.entries {
 		if e.desired == event.PresenceOnline && !e.until.IsZero() && !now.Before(e.until) {
-			e.desired = event.PresenceUnavailable
+			e.desired = event.PresenceOffline
 			e.until = time.Time{}
 		}
 		sinceSent := now.Sub(e.sentAt)

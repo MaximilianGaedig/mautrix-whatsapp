@@ -84,10 +84,17 @@ func (wa *WhatsAppClient) handleWAEvent(rawEvt any) (success bool) {
 	switch evt := rawEvt.(type) {
 	case *events.Message:
 		success = wa.handleWAMessage(ctx, evt)
+		if !evt.Info.IsFromMe {
+			wa.noteActivity(ctx, evt.Info.Sender, evt.Info.Timestamp)
+		}
 	case *events.Receipt:
 		success = wa.handleWAReceipt(ctx, evt)
+		if evt.Type == types.ReceiptTypeRead || evt.Type == types.ReceiptTypeReadSelf {
+			wa.noteActivity(ctx, evt.Sender, evt.Timestamp)
+		}
 	case *events.ChatPresence:
 		wa.handleWAChatPresence(ctx, evt)
+		wa.noteActivity(ctx, evt.Sender, time.Now())
 	case *events.Presence:
 		wa.handleWAPresence(ctx, evt)
 	case *events.UndecryptableMessage:

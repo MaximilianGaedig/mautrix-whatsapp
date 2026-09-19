@@ -103,8 +103,8 @@ func TestExpiryDecaysOnline(t *testing.T) {
 		t.Fatalf("unexpected send before expiry: %v", s)
 	}
 	h.advance(time.Second)
-	if s := h.take(); len(s) != 1 || s[0].p != event.PresenceUnavailable {
-		t.Fatalf("expected unavailable after expiry, got %v", s)
+	if s := h.take(); len(s) != 1 || s[0].p != event.PresenceOffline {
+		t.Fatalf("expected offline after expiry, got %v", s)
 	}
 	// And no online refresh afterwards.
 	h.advance(10 * time.Minute)
@@ -181,5 +181,23 @@ func TestTokenBucket(t *testing.T) {
 	}
 	if !tb.Allow(now.Add(time.Hour)) || !tb.Allow(now.Add(time.Hour)) || tb.Allow(now.Add(time.Hour)) {
 		t.Fatal("refill must cap at burst")
+	}
+}
+
+func TestActivityMakesOnlineForAWhile(t *testing.T) {
+	h := newHarness(Config{Debounce: time.Second})
+	h.m.Activity("u", h.now)
+	h.advance(0)
+	if s := h.take(); len(s) != 1 || s[0].p != event.PresenceOnline {
+		t.Fatalf("expected online, got %+v", s)
+	}
+	h.advance(ActivityOnline)
+	if s := h.take(); len(s) != 1 || s[0].p != event.PresenceOffline {
+		t.Fatalf("expected offline after the activity window, got %+v", s)
+	}
+	h.m.Activity("old", h.now.Add(-time.Hour))
+	h.advance(time.Minute)
+	if s := h.take(); len(s) != 0 {
+		t.Fatalf("old activity sent: %+v", s)
 	}
 }
