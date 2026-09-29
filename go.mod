@@ -54,3 +54,7 @@ require (
 )
 
 replace maunium.net/go/mautrix => github.com/MaximilianGaedig/mautrix-go v0.31.1-0.20260924214845-59cd6e4dea34
+
+// Development: build against the local whatsmeow carrying upstream PR #1201 (the call
+// signalling and media-handoff API). Replaced with a real module path before this ships.
+replace go.mau.fi/whatsmeow => ../whatsmeow
