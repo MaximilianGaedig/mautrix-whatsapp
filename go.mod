@@ -28,11 +28,20 @@ require (
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-sqlite3 v1.14.52 // indirect
 	github.com/petermattis/goid v0.0.0-20260820044319-269ab09b5261 // indirect
+	github.com/pion/datachannel v1.6.2 // indirect
+	github.com/pion/dtls/v3 v3.1.8 // indirect
+	github.com/pion/logging v0.2.4 // indirect
+	github.com/pion/opus v0.1.0 // indirect
+	github.com/pion/randutil v0.1.0 // indirect
+	github.com/pion/sctp v1.11.1 // indirect
+	github.com/pion/transport/v4 v4.1.0 // indirect
+	github.com/purpshell/meowcaller v0.0.0-20260906234207-c48c3e2a243c // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
@@ -54,6 +63,10 @@ require (
 )
 
 replace maunium.net/go/mautrix => github.com/MaximilianGaedig/mautrix-go v0.31.1-0.20260924214845-59cd6e4dea34
+
+// Development: the WhatsApp VoIP media library, retargeted at whatsmeow (it is written against a
+// fork). Pure Go: it implements SRTP, the RTP WARP framing and Meta's MLow codec without CGO.
+replace github.com/purpshell/meowcaller => ../meowcaller
 
 // Development: build against the local whatsmeow carrying upstream PR #1201 (the call
 // signalling and media-handoff API). Replaced with a real module path before this ships.
