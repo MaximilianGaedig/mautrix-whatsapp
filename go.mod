@@ -9,6 +9,7 @@ tool go.mau.fi/util/cmd/maubuild
 require (
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
+	github.com/pion/ice/v4 v4.4.4
 	github.com/pion/rtp v1.10.5
 	github.com/pion/webrtc/v4 v4.2.22
 	github.com/purpshell/meowcaller v0.0.0-20260906234207-c48c3e2a243c
@@ -71,7 +72,6 @@ require (
 	github.com/petermattis/goid v0.0.0-20260820044319-269ab09b5261 // indirect
 	github.com/pion/datachannel v1.6.3 // indirect
 	github.com/pion/dtls/v3 v3.1.9 // indirect
-	github.com/pion/ice/v4 v4.4.4 // indirect
 	github.com/pion/interceptor v0.1.49 // indirect
 	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/mdns/v2 v2.2.1 // indirect
@@ -125,8 +125,8 @@ replace maunium.net/go/mautrix => github.com/MaximilianGaedig/mautrix-go v0.31.1
 
 // Development: the WhatsApp VoIP media library, retargeted at whatsmeow (it is written against a
 // fork). Pure Go: it implements SRTP, the RTP WARP framing and Meta's MLow codec without CGO.
-replace github.com/purpshell/meowcaller => ../meowcaller
+replace github.com/purpshell/meowcaller => github.com/MaximilianGaedig/meowcaller v0.0.0-20260929115618-8cc1122354fc
 
 // Development: build against the local whatsmeow carrying upstream PR #1201 (the call
 // signalling and media-handoff API). Replaced with a real module path before this ships.
-replace go.mau.fi/whatsmeow => ../whatsmeow
+replace go.mau.fi/whatsmeow => github.com/MaximilianGaedig/whatsmeow v0.0.0-20260929115042-34cb57d6f431
