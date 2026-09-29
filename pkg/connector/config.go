@@ -36,6 +36,7 @@ type Config struct {
 	DisplaynameTemplate string `yaml:"displayname_template"`
 
 	CallStartNotices            bool          `yaml:"call_start_notices"`
+	CallBridging                bool          `yaml:"call_bridging"`
 	IdentityChangeNotices       bool          `yaml:"identity_change_notices"`
 	SendPresenceOnTyping        bool          `yaml:"send_presence_on_typing"`
 	EnableStatusBroadcast       bool          `yaml:"enable_status_broadcast"`
@@ -120,6 +121,7 @@ func upgradeConfig(helper up.Helper) {
 	helper.Copy(up.Str, "displayname_template")
 
 	helper.Copy(up.Bool, "call_start_notices")
+	helper.Copy(up.Bool, "call_bridging")
 	helper.Copy(up.Bool, "identity_change_notices")
 	helper.Copy(up.Bool, "send_presence_on_typing")
 	helper.Copy(up.Bool, "enable_status_broadcast")
@@ -218,6 +220,7 @@ func (wa *WhatsAppConnector) GetConfig() (string, any, up.Upgrader) {
 			{"proxy"},
 			{"displayname_template"},
 			{"call_start_notices"},
+			{"call_bridging"},
 			{"presence_bridging"},
 			{"animated_sticker"},
 			{"history_sync"},

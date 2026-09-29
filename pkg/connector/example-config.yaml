@@ -22,6 +22,9 @@ displayname_template: '{{or .BusinessName .PushName .Phone .RedactedPhone "Unkno
 
 # Should incoming calls send a message to the Matrix room?
 call_start_notices: true
+# Bridge WhatsApp calls to Matrix calls, so they can be answered in Matrix instead of
+# only announced. Requires a client that supports 1:1 calls; audio only.
+call_bridging: false
 # Should another user's cryptographic identity changing send a message to Matrix?
 identity_change_notices: false
 # Should the bridge mark you as online on WhatsApp when you send typing notifications?

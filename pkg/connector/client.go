@@ -88,6 +88,11 @@ func (wa *WhatsAppConnector) LoadUserLogin(ctx context.Context, login *bridgev2.
 		w.Client.SetForceActiveDeliveryReceipts(wa.Config.ForceActiveDeliveryReceipts)
 		w.Client.InitialAutoReconnect = wa.Config.InitialAutoReconnect
 		w.Client.UseRetryMessageStore = wa.Config.UseWhatsAppRetryStore
+		if wa.Config.CallBridging {
+			// Before Connect: meowcaller intercepts the raw <call> and <ack> stanzas, and an
+			// interceptor installed after the receive loop starts misses whatever arrived first.
+			w.Calls = newCallBridge(w)
+		}
 	} else {
 		w.UserLogin.Log.Warn().Stringer("jid", w.JID).Msg("No device found for user in whatsmeow store")
 	}
@@ -108,6 +113,7 @@ type WhatsAppClient struct {
 	JID       types.JID
 	LID       types.JID
 	MC        mClient
+	Calls     *waCallBridge
 
 	historySyncWakeup  chan struct{}
 	stopLoops          atomic.Pointer[context.CancelFunc]
@@ -380,6 +386,11 @@ func (wa *WhatsAppClient) callStopLoops() {
 }
 
 func (wa *WhatsAppClient) Disconnect() {
+	// A bridged call outlives the socket otherwise: both legs would sit there with nothing left to
+	// carry, and the Matrix client would show a call that never ends.
+	if calls := wa.Calls; calls != nil {
+		calls.stop()
+	}
 	wa.callStopLoops()
 	if cli := wa.Client; cli != nil {
 		cli.Disconnect()
