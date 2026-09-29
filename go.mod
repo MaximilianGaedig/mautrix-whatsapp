@@ -8,6 +8,7 @@ tool go.mau.fi/util/cmd/maubuild
 
 require (
 	github.com/lib/pq v1.12.3
+	github.com/pion/rtp v1.10.5
 	github.com/rs/zerolog v1.35.1
 	github.com/tidwall/gjson v1.19.0
 	go.mau.fi/util v0.10.1
@@ -17,6 +18,7 @@ require (
 	golang.org/x/net v0.59.0
 	golang.org/x/sync v0.23.0
 	google.golang.org/protobuf v1.36.12
+	gopkg.in/hraban/opus.v2 v2.0.0-20230925203106-0188a62cb302
 	gopkg.in/yaml.v3 v3.0.1
 	maunium.net/go/mautrix v0.31.0
 )
@@ -28,20 +30,12 @@ require (
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-sqlite3 v1.14.52 // indirect
 	github.com/petermattis/goid v0.0.0-20260820044319-269ab09b5261 // indirect
-	github.com/pion/datachannel v1.6.2 // indirect
-	github.com/pion/dtls/v3 v3.1.8 // indirect
-	github.com/pion/logging v0.2.4 // indirect
-	github.com/pion/opus v0.1.0 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/sctp v1.11.1 // indirect
-	github.com/pion/transport/v4 v4.1.0 // indirect
-	github.com/purpshell/meowcaller v0.0.0-20260906234207-c48c3e2a243c // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
