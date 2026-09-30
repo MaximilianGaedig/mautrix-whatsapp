@@ -2,12 +2,10 @@ package connector
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.mau.fi/util/jsontime"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
@@ -17,7 +15,9 @@ import (
 
 func TestAboutExtraProfile(t *testing.T) {
 	profile := aboutExtraProfile("Busy at the gym")
-	assert.JSONEq(t, `"Busy at the gym"`, string(profile[aboutProfileKey]))
+	// MSC4440: the biography field, in extensible events' m.text form.
+	assert.Equal(t, "gay.fomx.biography", aboutProfileKey)
+	assert.JSONEq(t, `{"m.text":[{"body":"Busy at the gym"}]}`, string(profile[aboutProfileKey]))
 
 	// The way bridgev2 merges it into a ghost.
 	var ghostProfile database.ExtraProfile
@@ -26,9 +26,7 @@ func TestAboutExtraProfile(t *testing.T) {
 
 	cleared := aboutExtraProfile("")
 	assert.True(t, cleared.CopyTo(&ghostProfile), "an emptied about text is a change")
-	var text string
-	require.NoError(t, json.Unmarshal(ghostProfile[aboutProfileKey], &text))
-	assert.Equal(t, "", text)
+	assert.JSONEq(t, `null`, string(ghostProfile[aboutProfileKey]), "no about text clears the field")
 }
 
 func TestAboutFetchDue(t *testing.T) {
@@ -61,7 +59,7 @@ func TestAboutUserInfoUpdatesGhost(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	ghost := &bridgev2.Ghost{Ghost: &database.Ghost{ID: "15550100", Metadata: &waid.GhostMetadata{}}}
 	info := aboutUserInfo("Hello there", now)
-	assert.JSONEq(t, `"Hello there"`, string(info.ExtraProfile[aboutProfileKey]))
+	assert.JSONEq(t, `{"m.text":[{"body":"Hello there"}]}`, string(info.ExtraProfile[aboutProfileKey]))
 	assert.True(t, info.ExtraUpdates(context.Background(), ghost))
 	assert.False(t, aboutNeedsFetch(ghost, now.Add(time.Hour)), "an event counts as a fetch")
 	assert.True(t, aboutNeedsFetch(ghost, now.Add(25*time.Hour)))

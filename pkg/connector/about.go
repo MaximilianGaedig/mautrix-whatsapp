@@ -13,9 +13,9 @@ import (
 	"go.mau.fi/mautrix-whatsapp/pkg/waid"
 )
 
-// aboutProfileKey is where a user's WhatsApp "about" text goes in the ghost's extra profile: the bio key every
-// bridge shares, so Matrix clients show it the same for every network.
-const aboutProfileKey = "im.mxg.bio"
+// aboutProfileKey is where a user's WhatsApp "about" text goes in the ghost's extra profile: MSC4440's
+// biography field (unstable name), which Matrix clients read the same for every network.
+const aboutProfileKey = "gay.fomx.biography"
 
 // aboutRefetchInterval is how often a user's about text is fetched on its own. Changes in between arrive
 // as events.UserAbout.
@@ -23,8 +23,12 @@ const aboutRefetchInterval = 24 * time.Hour
 
 func aboutExtraProfile(status string) database.ExtraProfile {
 	var profile database.ExtraProfile
-	// The value is a string, which always marshals.
-	_ = profile.Set(aboutProfileKey, status)
+	// MSC4440 keeps the text in extensible events' m.text form; no about text clears the field. Both marshal.
+	if status == "" {
+		_ = profile.Set(aboutProfileKey, nil)
+	} else {
+		_ = profile.Set(aboutProfileKey, map[string]any{"m.text": []map[string]string{{"body": status}}})
+	}
 	return profile
 }
 
