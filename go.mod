@@ -14,6 +14,7 @@ require (
 	github.com/pion/webrtc/v4 v4.2.22
 	github.com/purpshell/meowcaller v0.0.0-20260906234207-c48c3e2a243c
 	github.com/rs/zerolog v1.35.1
+	github.com/stretchr/testify v1.12.1
 	github.com/tidwall/gjson v1.19.0
 	github.com/yuin/goldmark v1.8.6
 	go.mau.fi/util v0.10.2-0.20260918225449-a4c0d5b86aa8
@@ -121,7 +122,7 @@ require (
 	maunium.net/go/mauflag v1.0.0 // indirect
 )
 
-replace maunium.net/go/mautrix => github.com/MaximilianGaedig/mautrix-go v0.31.1-0.20260930120123-2a0db57466cc
+replace maunium.net/go/mautrix => github.com/MaximilianGaedig/mautrix-go v0.31.1-0.20260930141712-f11cde9bb56b
 
 // Development: the WhatsApp VoIP media library, retargeted at whatsmeow (it is written against a
 // fork). Pure Go: it implements SRTP, the RTP WARP framing and Meta's MLow codec without CGO.

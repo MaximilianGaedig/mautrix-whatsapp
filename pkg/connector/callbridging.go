@@ -26,8 +26,9 @@ import (
 	"github.com/purpshell/meowcaller"
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/bridgev2"
-	"maunium.net/go/mautrix/bridgev2/matrix"
 	"maunium.net/go/mautrix/bridgev2/callbridge"
+	"maunium.net/go/mautrix/bridgev2/calllog"
+	"maunium.net/go/mautrix/bridgev2/matrix"
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-whatsapp/pkg/waid"
@@ -411,7 +412,9 @@ func (s *waCallSession) answerIncoming(matrixAnswer, matrixParty string) {
 	if err := s.call.Answer(); err != nil {
 		s.log.Error().Err(err).Msg("Failed to answer the WhatsApp call")
 		s.end(true)
+		return
 	}
+	s.bridge.client.reportBridgedCall(s.call.ID(), (*calllog.Log).Answer)
 }
 
 /*
@@ -632,6 +635,13 @@ func (s *waCallSession) end(notifyWA bool) {
 
 		if notifyWA && call != nil {
 			var err error
+			if s.incoming {
+				report := (*calllog.Log).End
+				if !answering {
+					report = (*calllog.Log).Decline
+				}
+				s.bridge.client.reportBridgedCall(call.ID(), report)
+			}
 			if s.incoming && !answering {
 				// Never picked up in Matrix, so this is a decline rather than a hangup, and the
 				// caller's phone should say so.

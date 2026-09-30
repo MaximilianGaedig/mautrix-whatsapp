@@ -36,6 +36,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"golang.org/x/sync/semaphore"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/calllog"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/bridgev2/status"
 	"maunium.net/go/mautrix/event"
@@ -48,6 +49,7 @@ func (wa *WhatsAppConnector) LoadUserLogin(ctx context.Context, login *bridgev2.
 		Main:      wa,
 		UserLogin: login,
 		MC:        noopMCInstance,
+		CallLog:   calllog.New(),
 
 		historySyncWakeup:         make(chan struct{}, 1),
 		resyncQueue:               make(map[types.JID]resyncQueueItem),
@@ -114,6 +116,8 @@ type WhatsAppClient struct {
 	LID       types.JID
 	MC        mClient
 	Calls     *waCallBridge
+	CallLog   *calllog.Log
+	Ringing   ringingCalls
 
 	historySyncWakeup  chan struct{}
 	stopLoops          atomic.Pointer[context.CancelFunc]
