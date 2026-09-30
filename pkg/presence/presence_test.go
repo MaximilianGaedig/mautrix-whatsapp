@@ -170,7 +170,9 @@ func TestMaxTrackedEvictsSettled(t *testing.T) {
 func TestTokenBucket(t *testing.T) {
 	now := time.Unix(0, 0)
 	tb := NewTokenBucket(1, 2, now)
-	if !tb.Allow(now) || !tb.Allow(now) || tb.Allow(now) {
+	// Each Allow spends a token, so these are three calls in turn, not one condition.
+	first, second, third := tb.Allow(now), tb.Allow(now), tb.Allow(now)
+	if !first || !second || third {
 		t.Fatal("burst of 2 expected")
 	}
 	if tb.Allow(now.Add(500 * time.Millisecond)) {
@@ -179,7 +181,9 @@ func TestTokenBucket(t *testing.T) {
 	if !tb.Allow(now.Add(time.Second)) {
 		t.Fatal("one token after a second")
 	}
-	if !tb.Allow(now.Add(time.Hour)) || !tb.Allow(now.Add(time.Hour)) || tb.Allow(now.Add(time.Hour)) {
+	later := now.Add(time.Hour)
+	first, second, third = tb.Allow(later), tb.Allow(later), tb.Allow(later)
+	if !first || !second || third {
 		t.Fatal("refill must cap at burst")
 	}
 }
