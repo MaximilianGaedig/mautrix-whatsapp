@@ -137,6 +137,9 @@ func (evt *WAMessageEvent) AddLogContext(c zerolog.Context) zerolog.Context {
 	if targetMsg := evt.GetTargetMessage(); targetMsg != "" {
 		c = c.Str("target_message_id", string(targetMsg))
 	}
+	if evt.parsedMessageType == "edit" {
+		c = c.Str("edit_inner_message_type", getMessageType(evt.Message.GetProtocolMessage().GetEditedMessage()))
+	}
 	return evt.MessageInfoWrapper.AddLogContext(c).Str("parsed_message_type", evt.parsedMessageType)
 }
 
@@ -190,12 +193,42 @@ func (evt *WAMessageEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Por
 		cacheMessage = evt.GetID()
 	} else {
 		editedMsg = evt.Message.GetProtocolMessage().GetEditedMessage()
-		previouslyConvertedPart = evt.wa.Main.GetMediaEditCache(portal, targetMessage)
+		if editedMsg.GetLottieStickerMessage().GetMessage() != nil {
+			editedMsg = editedMsg.GetLottieStickerMessage().GetMessage()
+		}
+		if editedMsg.GetDocumentWithCaptionMessage().GetMessage() != nil {
+			editedMsg = editedMsg.GetDocumentWithCaptionMessage().GetMessage()
+		}
 		meta := existing[0].Metadata.(*waid.MessageMetadata)
 		if slices.Contains(meta.Edits, evt.Info.ID) {
 			return nil, fmt.Errorf("%w: edit already handled", bridgev2.ErrIgnoringRemoteEvent)
 		}
 		meta.Edits = append(meta.Edits, evt.Info.ID)
+		previouslyConvertedPart = evt.wa.Main.GetMediaEditCache(portal, targetMessage)
+		if previouslyConvertedPart == nil && needsPreviousEditPart(editedMsg) {
+			editedEvent, err := evt.wa.Main.Bridge.Bot.GetEvent(ctx, portal.MXID, existing[0].MXID)
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to fetch existing event for edit")
+			} else if editedEvent != nil && editedEvent.Content.AsMessage().MsgType != "" {
+				zerolog.Ctx(ctx).Debug().Msg("Fetched existing edit from server for caption edit")
+				copiedExtra := make(map[string]any)
+				for _, key := range []string{"info", msgconv.FailedMediaField} {
+					val, ok := editedEvent.Content.Raw[key]
+					if ok {
+						copiedExtra[key] = val
+					}
+				}
+				previouslyConvertedPart = &bridgev2.ConvertedMessagePart{
+					ID:         existing[0].PartID,
+					Type:       editedEvent.Type,
+					Content:    editedEvent.Content.AsMessage(),
+					Extra:      copiedExtra,
+					DBMetadata: meta,
+				}
+			} else {
+				zerolog.Ctx(ctx).Debug().Msg("Didn't find existing edit on server for caption edit")
+			}
+		}
 	}
 
 	ctx = context.WithValue(ctx, msgconv.ContextKeyEditTargetID, evt.Message.GetProtocolMessage().GetKey().GetID())
