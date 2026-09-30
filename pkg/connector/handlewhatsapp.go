@@ -360,6 +360,10 @@ func (wa *WhatsAppClient) handleWAMessage(ctx context.Context, evt *events.Messa
 		return
 	}
 
+	if pin := evt.Message.GetPinInChatMessage(); pin != nil {
+		return wa.handleWAPinInChat(ctx, &MessageInfoWrapper{Info: evt.Info, wa: wa}, pin)
+	}
+
 	dontRenderEdited := false
 	messageAssoc := evt.Message.GetMessageContextInfo().GetMessageAssociation()
 	if assocType := messageAssoc.GetAssociationType(); assocType == waE2E.MessageAssociation_HD_IMAGE_DUAL_UPLOAD || assocType == waE2E.MessageAssociation_HD_VIDEO_DUAL_UPLOAD {
