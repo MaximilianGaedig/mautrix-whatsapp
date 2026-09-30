@@ -23,8 +23,10 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
 
-      - name: Install libolm
-        run: sudo apt-get install libolm-dev libolm3
+      - name: Install libolm and opus
+        # opus is for calls (gopkg.in/hraban/opus.v2, cgo): without it vet and staticcheck cannot build the
+        # packages at all, and fail before they check anything.
+        run: sudo apt-get install libolm-dev libolm3 libopus-dev libopusfile-dev pkg-config
 
       - name: Install dependencies
         run: |
