@@ -13,8 +13,9 @@ import (
 	"go.mau.fi/mautrix-whatsapp/pkg/waid"
 )
 
-// aboutProfileKey is the key of a user's WhatsApp "about" text in the ghost's extra profile.
-const aboutProfileKey = "about"
+// aboutProfileKey is where a user's WhatsApp "about" text goes in the ghost's extra profile: the bio key every
+// bridge shares, so Matrix clients show it the same for every network.
+const aboutProfileKey = "im.mxg.bio"
 
 // aboutRefetchInterval is how often a user's about text is fetched on its own. Changes in between arrive
 // as events.UserAbout.

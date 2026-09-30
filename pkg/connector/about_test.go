@@ -17,7 +17,7 @@ import (
 
 func TestAboutExtraProfile(t *testing.T) {
 	profile := aboutExtraProfile("Busy at the gym")
-	assert.JSONEq(t, `"Busy at the gym"`, string(profile["about"]))
+	assert.JSONEq(t, `"Busy at the gym"`, string(profile[aboutProfileKey]))
 
 	// The way bridgev2 merges it into a ghost.
 	var ghostProfile database.ExtraProfile
@@ -27,7 +27,7 @@ func TestAboutExtraProfile(t *testing.T) {
 	cleared := aboutExtraProfile("")
 	assert.True(t, cleared.CopyTo(&ghostProfile), "an emptied about text is a change")
 	var text string
-	require.NoError(t, json.Unmarshal(ghostProfile["about"], &text))
+	require.NoError(t, json.Unmarshal(ghostProfile[aboutProfileKey], &text))
 	assert.Equal(t, "", text)
 }
 
@@ -61,7 +61,7 @@ func TestAboutUserInfoUpdatesGhost(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	ghost := &bridgev2.Ghost{Ghost: &database.Ghost{ID: "15550100", Metadata: &waid.GhostMetadata{}}}
 	info := aboutUserInfo("Hello there", now)
-	assert.JSONEq(t, `"Hello there"`, string(info.ExtraProfile["about"]))
+	assert.JSONEq(t, `"Hello there"`, string(info.ExtraProfile[aboutProfileKey]))
 	assert.True(t, info.ExtraUpdates(context.Background(), ghost))
 	assert.False(t, aboutNeedsFetch(ghost, now.Add(time.Hour)), "an event counts as a fetch")
 	assert.True(t, aboutNeedsFetch(ghost, now.Add(25*time.Hour)))
