@@ -27,6 +27,7 @@ import (
 	"go.mau.fi/util/random"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/types"
+	"maunium.net/go/mautrix/bridgev2/networkid"
 
 	"go.mau.fi/mautrix-whatsapp/pkg/album"
 )
@@ -140,6 +141,28 @@ type PortalMetadata struct {
 	CommunityAnnouncementGroup bool                 `json:"is_cag,omitzero"`
 	AddressingMode             types.AddressingMode `json:"addressing_mode,omitempty"`
 	LIDMigrationAttempted      bool                 `json:"lid_migration_attempted,omitzero"`
+	// When each pinned message's pin runs out: WhatsApp pins expire, Matrix pins don't.
+	PinExpiry map[networkid.MessageID]jsontime.Unix `json:"pin_expiry,omitempty"`
+}
+
+// SetPinExpiry records when a pin runs out, or forgets it when the message is unpinned or its pin
+// doesn't expire. It reports whether anything changed.
+func (pm *PortalMetadata) SetPinExpiry(msgID networkid.MessageID, pinned bool, expiry time.Time) bool {
+	if !pinned || expiry.IsZero() {
+		if _, ok := pm.PinExpiry[msgID]; !ok {
+			return false
+		}
+		delete(pm.PinExpiry, msgID)
+		return true
+	}
+	if old, ok := pm.PinExpiry[msgID]; ok && old.Unix() == expiry.Unix() {
+		return false
+	}
+	if pm.PinExpiry == nil {
+		pm.PinExpiry = make(map[networkid.MessageID]jsontime.Unix)
+	}
+	pm.PinExpiry[msgID] = jsontime.U(expiry)
+	return true
 }
 
 type GhostMetadata struct {

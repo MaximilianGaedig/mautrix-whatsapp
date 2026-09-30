@@ -134,6 +134,9 @@ type WhatsAppClient struct {
 
 	appStateRecoveryLock      sync.Mutex
 	appStateFullSyncAttempted map[appstate.WAPatchName]time.Time
+
+	// Armed pin expiry timers, by pinTimerKey.
+	pinTimers sync.Map
 }
 
 var (

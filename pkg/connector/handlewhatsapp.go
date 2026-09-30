@@ -194,6 +194,7 @@ func (wa *WhatsAppClient) handleWAEvent(rawEvt any) (success bool) {
 			}()
 			go wa.syncRemoteProfile(ctx, nil)
 		}
+		go wa.sweepPinExpiry(ctx)
 	case *events.OfflineSyncPreview:
 		log.Info().
 			Int("message_count", evt.Messages).
@@ -361,7 +362,11 @@ func (wa *WhatsAppClient) handleWAMessage(ctx context.Context, evt *events.Messa
 	}
 
 	if pin := evt.Message.GetPinInChatMessage(); pin != nil {
-		return wa.handleWAPinInChat(ctx, &MessageInfoWrapper{Info: evt.Info, wa: wa}, pin)
+		return wa.handleWAPinInChat(ctx, &WAMessageEvent{
+			MessageInfoWrapper: &MessageInfoWrapper{Info: evt.Info, wa: wa},
+			Message:            evt.Message,
+			MsgEvent:           evt,
+		}, pin)
 	}
 
 	dontRenderEdited := false

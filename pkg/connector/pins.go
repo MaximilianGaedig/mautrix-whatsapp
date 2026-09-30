@@ -42,9 +42,19 @@ func pinChange(pin *waE2E.PinInChatMessage, target networkid.MessageID) *bridgev
 	}
 }
 
-func (wa *WhatsAppClient) handleWAPinInChat(ctx context.Context, evt *MessageInfoWrapper, pin *waE2E.PinInChatMessage) bool {
+func (wa *WhatsAppClient) handleWAPinInChat(ctx context.Context, evt *WAMessageEvent, pin *waE2E.PinInChatMessage) bool {
 	target := msgconv.KeyToMessageID(ctx, wa.Client, evt.Info.Chat, evt.Info.Sender, pin.GetKey())
 	info := pinChange(pin, target)
+	if info != nil {
+		pinned := info.PinChanges[0].Pinned
+		expiry := pinExpiry(evt.Info.Timestamp, evt.Message.GetMessageContextInfo().GetMessageAddOnDurationInSecs())
+		info.ExtraUpdates = func(ctx context.Context, portal *bridgev2.Portal) bool {
+			return portal.Metadata.(*waid.PortalMetadata).SetPinExpiry(target, pinned, expiry)
+		}
+		if pinned {
+			wa.schedulePinExpiry(evt.GetPortalKey(), target, expiry)
+		}
+	}
 	if info == nil {
 		wa.UserLogin.Log.Debug().
 			Str("message_id", evt.Info.ID).
@@ -95,6 +105,98 @@ func (wa *WhatsAppClient) HandleMatrixPin(ctx context.Context, msg *bridgev2.Mat
 	if err != nil {
 		return fmt.Errorf("failed to parse portal ID: %w", err)
 	}
-	_, err = wa.Client.SendMessage(ctx, portalJID, pinInChatMessage(wa.messageIDToKey(messageID), msg.Pinned, time.UnixMilli(msg.Event.Timestamp)))
-	return err
+	ts := time.UnixMilli(msg.Event.Timestamp)
+	_, err = wa.Client.SendMessage(ctx, portalJID, pinInChatMessage(wa.messageIDToKey(messageID), msg.Pinned, ts))
+	if err != nil {
+		return err
+	}
+	var expiry time.Time
+	if msg.Pinned {
+		expiry = ts.Add(pinDuration)
+		wa.schedulePinExpiry(msg.Portal.PortalKey, msg.TargetMessage.ID, expiry)
+	}
+	if msg.Portal.Metadata.(*waid.PortalMetadata).SetPinExpiry(msg.TargetMessage.ID, msg.Pinned, expiry) {
+		return msg.Portal.Save(ctx)
+	}
+	return nil
+}
+
+// afterFunc is time.AfterFunc; tests count the timers through it.
+var afterFunc = func(d time.Duration, f func()) { time.AfterFunc(d, f) }
+
+type pinTimerKey struct {
+	portal networkid.PortalKey
+	msgID  networkid.MessageID
+	expiry int64
+}
+
+// pinExpiry is when a pin made at ts for duration seconds runs out; zero for a pin without a duration.
+func pinExpiry(ts time.Time, duration uint32) time.Time {
+	if duration == 0 {
+		return time.Time{}
+	}
+	return ts.Add(time.Duration(duration) * time.Second)
+}
+
+// schedulePinExpiry unpins the message in Matrix when its WhatsApp pin runs out, as WhatsApp does
+// silently on every device. A pin that ran out while the bridge was down is unpinned at the next
+// connect (sweepPinExpiry).
+func (wa *WhatsAppClient) schedulePinExpiry(portalKey networkid.PortalKey, msgID networkid.MessageID, expiry time.Time) {
+	if expiry.IsZero() {
+		return
+	}
+	// Every reconnect re-arms the timers; one per pin is enough.
+	key := pinTimerKey{portalKey, msgID, expiry.Unix()}
+	if _, armed := wa.pinTimers.LoadOrStore(key, struct{}{}); armed {
+		return
+	}
+	afterFunc(max(time.Until(expiry), 0), func() {
+		wa.pinTimers.Delete(key)
+		wa.expirePin(portalKey, msgID, expiry)
+	})
+}
+
+func (wa *WhatsAppClient) expirePin(portalKey networkid.PortalKey, msgID networkid.MessageID, expiry time.Time) {
+	ctx := wa.UserLogin.Log.With().Str("action", "expire pin").Logger().WithContext(wa.Main.Bridge.BackgroundCtx)
+	portal, err := wa.Main.Bridge.GetExistingPortalByKey(ctx, portalKey)
+	if err != nil || portal == nil {
+		return
+	}
+	// Re-pinned since (a later expiry) or unpinned already: this timer is stale.
+	if at, ok := portal.Metadata.(*waid.PortalMetadata).PinExpiry[msgID]; !ok || at.Unix() != expiry.Unix() {
+		return
+	}
+	wa.UserLogin.QueueRemoteEvent(&simplevent.ChatInfoChange{
+		EventMeta: simplevent.EventMeta{
+			Type:      bridgev2.RemoteEventChatInfoChange,
+			PortalKey: portalKey,
+			Timestamp: expiry,
+			LogContext: func(c zerolog.Context) zerolog.Context {
+				return c.Str("wa_event_type", "pin_expired").Str("target_message_id", string(msgID))
+			},
+		},
+		ChatInfoChange: &bridgev2.ChatInfoChange{ChatInfo: &bridgev2.ChatInfo{
+			PinChanges: []bridgev2.PinChange{{MessageID: msgID, Pinned: false}},
+			ExtraUpdates: func(ctx context.Context, portal *bridgev2.Portal) bool {
+				return portal.Metadata.(*waid.PortalMetadata).SetPinExpiry(msgID, false, time.Time{})
+			},
+		}},
+	})
+}
+
+// sweepPinExpiry re-arms the pin timers of this login's portals after a (re)start.
+func (wa *WhatsAppClient) sweepPinExpiry(ctx context.Context) {
+	portals, err := wa.Main.Bridge.GetAllPortalsWithMXID(ctx)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to list portals for pin expiry")
+		return
+	}
+	for _, portal := range portals {
+		if portal.Receiver != "" && portal.Receiver != wa.UserLogin.ID {
+			continue
+		}
+		for msgID, at := range portal.Metadata.(*waid.PortalMetadata).PinExpiry {
+			wa.schedulePinExpiry(portal.PortalKey, msgID, at.Time)
+		}
+	}
 }

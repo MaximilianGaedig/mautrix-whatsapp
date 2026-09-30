@@ -10,6 +10,7 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/networkid"
 
 	"go.mau.fi/mautrix-whatsapp/pkg/msgconv"
 	"go.mau.fi/mautrix-whatsapp/pkg/waid"
@@ -80,5 +81,35 @@ func TestPinInChatMessage(t *testing.T) {
 	}
 	if unpin.GetMessageContextInfo() != nil {
 		t.Error("an unpin carries no duration")
+	}
+}
+
+func TestPinExpiry(t *testing.T) {
+	ts := time.Unix(1_700_000_000, 0)
+	if got := pinExpiry(ts, 7*24*60*60); !got.Equal(ts.Add(7 * 24 * time.Hour)) {
+		t.Errorf("7-day pin expires at %v", got)
+	}
+	if !pinExpiry(ts, 0).IsZero() {
+		t.Error("a pin without a duration doesn't expire")
+	}
+}
+
+func TestSchedulePinExpiryArmsOnce(t *testing.T) {
+	armed := 0
+	orig := afterFunc
+	afterFunc = func(time.Duration, func()) { armed++ }
+	t.Cleanup(func() { afterFunc = orig })
+
+	wa := &WhatsAppClient{}
+	expiry := time.Now().Add(time.Hour)
+	wa.schedulePinExpiry(networkid.PortalKey{}, "m", expiry)
+	wa.schedulePinExpiry(networkid.PortalKey{}, "m", expiry) // a reconnect re-arming the same pin
+	if armed != 1 {
+		t.Errorf("%d timers armed for one pin", armed)
+	}
+	wa.schedulePinExpiry(networkid.PortalKey{}, "m", expiry.Add(time.Hour)) // re-pinned: a new expiry
+	wa.schedulePinExpiry(networkid.PortalKey{}, "n", time.Time{})           // doesn't expire
+	if armed != 2 {
+		t.Errorf("%d timers armed, want 2", armed)
 	}
 }
