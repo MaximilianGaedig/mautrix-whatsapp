@@ -15,9 +15,10 @@ require (
 	github.com/purpshell/meowcaller v0.0.0-20260906234207-c48c3e2a243c
 	github.com/rs/zerolog v1.35.1
 	github.com/tidwall/gjson v1.19.0
+	github.com/yuin/goldmark v1.8.6
 	go.mau.fi/util v0.10.2-0.20260918225449-a4c0d5b86aa8
 	go.mau.fi/webp v0.3.0
-	go.mau.fi/whatsmeow v0.0.0-20260916100317-2375e1751bbd
+	go.mau.fi/whatsmeow v0.0.0-20260929112325-8b41cfe6d9c4
 	golang.org/x/image v0.46.0
 	golang.org/x/net v0.59.0
 	golang.org/x/sync v0.23.0
@@ -98,7 +99,6 @@ require (
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/vektah/gqlparser/v2 v2.5.27 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
-	github.com/yuin/goldmark v1.8.6 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	go.mau.fi/libsignal v0.2.2 // indirect
 	go.mau.fi/zeroconfig v0.2.0 // indirect
@@ -129,4 +129,4 @@ replace github.com/purpshell/meowcaller => github.com/MaximilianGaedig/meowcalle
 
 // Development: build against the local whatsmeow carrying upstream PR #1201 (the call
 // signalling and media-handoff API). Replaced with a real module path before this ships.
-replace go.mau.fi/whatsmeow => github.com/MaximilianGaedig/whatsmeow v0.0.0-20260929115042-34cb57d6f431
+replace go.mau.fi/whatsmeow => github.com/MaximilianGaedig/whatsmeow v0.0.0-20260930131312-468bc79b1e05
