@@ -622,9 +622,25 @@ func (wa *WhatsAppClient) HandleRoomTag(ctx context.Context, msg *bridgev2.Matri
 	if err != nil {
 		return err
 	}
+	changes := wa.roomTagChanges(msg)
+	if !changes.any() {
+		return nil
+	}
+	var lastTS time.Time
+	var lastKey *waCommon.MessageKey
+	if changes.Archive != nil {
+		lastTS, lastKey, err = wa.getLastMessageInfo(ctx, chatJID, msg.Portal.PortalKey)
+		if err != nil {
+			return err
+		}
+	}
 	defer wa.mcTrack(msg, time.Now(), &retErr)
-	_, isFavorite := msg.Content.Tags[event.RoomTagFavourite]
-	return wa.Client.SendAppState(ctx, appstate.BuildPin(chatJID, isFavorite))
+	for _, patch := range roomTagPatches(chatJID, changes, lastTS, lastKey) {
+		if err = wa.Client.SendAppState(ctx, patch); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (wa *WhatsAppClient) getLastMessageInfo(ctx context.Context, chatJID types.JID, portalKey networkid.PortalKey) (time.Time, *waCommon.MessageKey, error) {
