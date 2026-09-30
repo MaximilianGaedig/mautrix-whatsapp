@@ -106,6 +106,8 @@ func (wa *WhatsAppClient) handleWAEvent(rawEvt any) (success bool) {
 		// ignore
 	case *events.IdentityChange:
 		wa.handleWAIdentityChange(ctx, evt)
+	case *events.Blocklist:
+		wa.handleWABlocklist(ctx, evt)
 	case *events.MarkChatAsRead:
 		success = wa.handleWAMarkChatAsRead(ctx, evt)
 	case *events.DeleteForMe:
@@ -199,6 +201,7 @@ func (wa *WhatsAppClient) handleWAEvent(rawEvt any) (success bool) {
 			go wa.syncRemoteProfile(ctx, nil)
 		}
 		go wa.sweepPinExpiry(ctx)
+		go wa.syncBlocklist(ctx)
 	case *events.OfflineSyncPreview:
 		log.Info().
 			Int("message_count", evt.Messages).

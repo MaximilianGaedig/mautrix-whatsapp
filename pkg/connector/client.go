@@ -118,6 +118,7 @@ type WhatsAppClient struct {
 	Calls     *waCallBridge
 	CallLog   *calllog.Log
 	Ringing   ringingCalls
+	blocked   blockedGhosts
 
 	historySyncWakeup  chan struct{}
 	stopLoops          atomic.Pointer[context.CancelFunc]
