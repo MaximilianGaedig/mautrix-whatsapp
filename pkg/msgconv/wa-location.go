@@ -25,6 +25,7 @@ import (
 	"math"
 	"net/http"
 
+	"go.mau.fi/util/ptr"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/event"
@@ -81,16 +82,21 @@ func (mc *MessageConverter) convertLocationMessage(ctx context.Context, msg *waE
 }
 
 func (mc *MessageConverter) convertLiveLocationMessage(ctx context.Context, msg *waE2E.LiveLocationMessage) (*bridgev2.ConvertedMessagePart, *waE2E.ContextInfo) {
-	content := &event.MessageEventContent{
-		Body:    "Started sharing live location",
-		MsgType: event.MsgNotice,
+	// Linked devices, which the bridge is one of, only ever get where a live location started: WhatsApp sends
+	// the updates to phones alone. So it's the starting point, as a location, and not a Matrix live location
+	// that would sit on that point as if it were still live.
+	part, contextInfo := mc.convertLocationMessage(ctx, &waE2E.LocationMessage{
+		DegreesLatitude:  msg.DegreesLatitude,
+		DegreesLongitude: msg.DegreesLongitude,
+		Name:             ptr.Ptr("Live location"),
+		JPEGThumbnail:    msg.JPEGThumbnail,
+		ContextInfo:      msg.ContextInfo,
+	})
+	part.Content.Body += "\nWhatsApp only shows where it goes next on the phone."
+	part.Content.FormattedBody += "<br>WhatsApp only shows where it goes next on the phone."
+	if caption := msg.GetCaption(); caption != "" {
+		part.Content.Body = caption + "\n" + part.Content.Body
+		part.Content.FormattedBody = html.EscapeString(caption) + "<br>" + part.Content.FormattedBody
 	}
-	if len(msg.GetCaption()) > 0 {
-		content.Body += ": " + msg.GetCaption()
-	}
-	content.Body += "\n\nUse the WhatsApp app to see the location."
-	return &bridgev2.ConvertedMessagePart{
-		Type:    event.EventMessage,
-		Content: content,
-	}, msg.GetContextInfo()
+	return part, contextInfo
 }
