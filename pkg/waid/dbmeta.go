@@ -168,6 +168,8 @@ func (pm *PortalMetadata) SetPinExpiry(msgID networkid.MessageID, pinned bool, e
 
 type GhostMetadata struct {
 	LastSync jsontime.Unix `json:"last_sync,omitzero"`
+	// AboutFetched is when the about text was last fetched.
+	AboutFetched jsontime.Unix `json:"about_fetched,omitzero"`
 
 	DirectAvatarURL string `json:"direct_avatar_url,omitempty"`
 }

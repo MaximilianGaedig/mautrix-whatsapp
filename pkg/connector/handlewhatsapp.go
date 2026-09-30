@@ -106,6 +106,8 @@ func (wa *WhatsAppClient) handleWAEvent(rawEvt any) (success bool) {
 		// ignore
 	case *events.IdentityChange:
 		wa.handleWAIdentityChange(ctx, evt)
+	case *events.UserAbout:
+		wa.handleWAUserAbout(ctx, evt)
 	case *events.Blocklist:
 		wa.handleWABlocklist(ctx, evt)
 	case *events.MarkChatAsRead:

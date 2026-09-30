@@ -170,6 +170,12 @@ func (wa *WhatsAppClient) doGhostResync(ctx context.Context, queue map[types.JID
 			log.Err(err).Stringer("jid", jid).Msg("Failed to get user info for puppet in background sync")
 			continue
 		}
+		if canHaveAbout(jid) {
+			// The background sync just fetched the status, so the about text costs nothing extra.
+			about := aboutUserInfo(info.Status, time.Now())
+			userInfo.ExtraProfile = about.ExtraProfile
+			userInfo.ExtraUpdates = bridgev2.MergeExtraUpdaters(userInfo.ExtraUpdates, about.ExtraUpdates)
+		}
 		ghost.UpdateInfo(ctx, userInfo)
 		wa.syncAltGhostWithInfo(ctx, jid, ghost)
 	}
@@ -178,10 +184,17 @@ func (wa *WhatsAppClient) doGhostResync(ctx context.Context, queue map[types.JID
 func (wa *WhatsAppClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridgev2.UserInfo, error) {
 	if ghost.Name != "" && ghost.NameSet {
 		wa.EnqueueGhostResync(ghost)
+		if aboutNeedsFetch(ghost, time.Now()) {
+			return &bridgev2.UserInfo{ExtraUpdates: wa.fetchGhostAbout}, nil
+		}
 		return nil, nil
 	}
 	jid := waid.ParseUserID(ghost.ID)
-	return wa.getUserInfo(ctx, jid, "", ghost.AvatarID == "")
+	info, err := wa.getUserInfo(ctx, jid, "", ghost.AvatarID == "")
+	if info != nil && aboutNeedsFetch(ghost, time.Now()) {
+		info.ExtraUpdates = bridgev2.MergeExtraUpdaters(info.ExtraUpdates, wa.fetchGhostAbout)
+	}
+	return info, err
 }
 
 func (wa *WhatsAppClient) getUserInfo(ctx context.Context, jid types.JID, avatarID string, fetchAvatar bool) (*bridgev2.UserInfo, error) {
