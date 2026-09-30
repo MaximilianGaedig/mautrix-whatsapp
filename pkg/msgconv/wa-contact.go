@@ -63,13 +63,3 @@ func (mc *MessageConverter) convertContactMessage(ctx context.Context, msg *waE2
 
 	return
 }
-
-func (mc *MessageConverter) convertContactsArrayMessage(ctx context.Context, msg *waE2E.ContactsArrayMessage) (*bridgev2.ConvertedMessagePart, *waE2E.ContextInfo) {
-	return &bridgev2.ConvertedMessagePart{
-		Type: event.EventMessage,
-		Content: &event.MessageEventContent{
-			MsgType: event.MsgNotice,
-			Body:    "Contact array messages are not yet supported",
-		},
-	}, msg.GetContextInfo()
-}

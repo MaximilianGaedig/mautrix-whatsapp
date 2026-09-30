@@ -227,6 +227,19 @@ func (mc *MessageConverter) ToMatrix(
 		part, contextInfo = mc.convertEphemeralSettingMessage(ctx, waMsg.ProtocolMessage, info.Timestamp, isBackfill)
 	case waMsg.EncCommentMessage != nil:
 		part = failedCommentPart
+	case waMsg.StatusMentionMessage != nil:
+		part, contextInfo = mc.convertStatusMentionMessage(ctx, waMsg.StatusMentionMessage)
+	case waMsg.StickerPackMessage != nil:
+		part, contextInfo = mc.convertStickerPackMessage(ctx, waMsg.StickerPackMessage)
+	case waMsg.SendPaymentMessage != nil, waMsg.RequestPaymentMessage != nil, waMsg.DeclinePaymentRequestMessage != nil,
+		waMsg.CancelPaymentRequestMessage != nil, waMsg.PaymentInviteMessage != nil:
+		part, contextInfo = mc.convertPaymentMessage(ctx, waMsg)
+	case waMsg.ScheduledCallCreationMessage != nil, waMsg.ScheduledCallEditMessage != nil:
+		part, contextInfo = mc.convertScheduledCallMessage(ctx, waMsg)
+	case waMsg.PollResultSnapshotMessage != nil:
+		part, contextInfo = mc.convertPollResultSnapshotMessage(ctx, waMsg.PollResultSnapshotMessage)
+	case waMsg.RequestPhoneNumberMessage != nil:
+		part, contextInfo = mc.convertRequestPhoneNumberMessage(ctx, waMsg.RequestPhoneNumberMessage)
 	default:
 		part, contextInfo = mc.convertUnknownMessage(ctx, rawWaMsg)
 	}
