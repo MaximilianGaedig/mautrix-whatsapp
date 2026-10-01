@@ -271,25 +271,30 @@ func (mc *MessageConverter) constructPlainMediaMessage(
 		height := uint32(content.Info.Height)
 		seconds := uint32(content.Info.Duration / 1000)
 
-		return &waE2E.Message{
-			VideoMessage: &waE2E.VideoMessage{
-				GifPlayback: proto.Bool(isGIF),
-				Width:       &width,
-				Height:      &height,
-				Seconds:     &seconds,
+		video := &waE2E.VideoMessage{
+			GifPlayback: proto.Bool(isGIF),
+			Width:       &width,
+			Height:      &height,
+			Seconds:     &seconds,
 
-				Caption:       proto.String(caption),
-				JPEGThumbnail: thumbnail,
-				URL:           proto.String(uploaded.URL),
-				DirectPath:    proto.String(uploaded.DirectPath),
-				MediaKey:      uploaded.MediaKey,
-				Mimetype:      proto.String(mime),
-				FileEncSHA256: uploaded.FileEncSHA256,
-				FileSHA256:    uploaded.FileSHA256,
-				FileLength:    proto.Uint64(uploaded.FileLength),
-				ContextInfo:   contextInfo,
-			},
+			Caption:       proto.String(caption),
+			JPEGThumbnail: thumbnail,
+			URL:           proto.String(uploaded.URL),
+			DirectPath:    proto.String(uploaded.DirectPath),
+			MediaKey:      uploaded.MediaKey,
+			Mimetype:      proto.String(mime),
+			FileEncSHA256: uploaded.FileEncSHA256,
+			FileSHA256:    uploaded.FileSHA256,
+			FileLength:    proto.Uint64(uploaded.FileLength),
+			ContextInfo:   contextInfo,
 		}
+		if !isGIF && isVideoNote(content, caption) {
+			// A video note is the same video message in another field of the envelope.
+			video.GifPlayback = nil
+			video.Caption = nil
+			return &waE2E.Message{PtvMessage: video}
+		}
+		return &waE2E.Message{VideoMessage: video}
 	case event.MsgFile:
 		fileName := content.FileName
 		if fileName == "" {
