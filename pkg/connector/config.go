@@ -60,6 +60,12 @@ type Config struct {
 	PresenceMaxSubscriptions int     `yaml:"presence_max_subscriptions"`
 	PresenceRefreshSeconds   int     `yaml:"presence_refresh_seconds"`
 	PresenceMaxPerSecond     float64 `yaml:"presence_max_per_second"`
+	// PresenceGroupMembers also subscribes to the members of the login's groups, not only to its
+	// chat partners.
+	PresenceGroupMembers bool `yaml:"presence_group_members"`
+	// PresenceLastActive reports the last seen WhatsApp gives for a contact to a homeserver that
+	// keeps an activity log.
+	PresenceLastActive bool `yaml:"presence_last_active"`
 
 	AnimatedSticker msgconv.AnimatedStickerConfig `yaml:"animated_sticker"`
 
@@ -144,6 +150,8 @@ func upgradeConfig(helper up.Helper) {
 	helper.Copy(up.Int, "presence_max_subscriptions")
 	helper.Copy(up.Int, "presence_refresh_seconds")
 	helper.Copy(up.Int|up.Float, "presence_max_per_second")
+	helper.Copy(up.Bool, "presence_group_members")
+	helper.Copy(up.Bool, "presence_last_active")
 
 	helper.Copy(up.Str, "animated_sticker", "target")
 	helper.Copy(up.Int, "animated_sticker", "args", "width")

@@ -79,22 +79,17 @@ func (wa *WhatsAppClient) handleWAEvent(rawEvt any) (success bool) {
 	log := wa.UserLogin.Log
 	ctx := log.WithContext(wa.Main.Bridge.BackgroundCtx)
 	wa.MC.OnWhatsAppEvent(rawEvt)
+	// After the event is handled: the handlers fill in the sender's other JID.
+	defer wa.noteActivity(ctx, rawEvt)
 
 	success = true
 	switch evt := rawEvt.(type) {
 	case *events.Message:
 		success = wa.handleWAMessage(ctx, evt)
-		if !evt.Info.IsFromMe {
-			wa.noteActivity(ctx, evt.Info.Sender, evt.Info.Timestamp)
-		}
 	case *events.Receipt:
 		success = wa.handleWAReceipt(ctx, evt)
-		if evt.Type == types.ReceiptTypeRead || evt.Type == types.ReceiptTypeReadSelf {
-			wa.noteActivity(ctx, evt.Sender, evt.Timestamp)
-		}
 	case *events.ChatPresence:
 		wa.handleWAChatPresence(ctx, evt)
-		wa.noteActivity(ctx, evt.Sender, time.Now())
 	case *events.Presence:
 		wa.handleWAPresence(ctx, evt)
 	case *events.UndecryptableMessage:
@@ -197,7 +192,7 @@ func (wa *WhatsAppClient) handleWAEvent(rawEvt any) (success bool) {
 				if err != nil {
 					log.Warn().Err(err).Msg("Failed to send initial presence after connecting")
 				} else {
-					wa.subscribeRecentDMPresences(ctx)
+					wa.subscribePresences(ctx)
 				}
 			}()
 			go wa.syncRemoteProfile(ctx, nil)

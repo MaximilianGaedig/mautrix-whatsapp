@@ -46,7 +46,7 @@ func TestPresenceSubscriptionsCap(t *testing.T) {
 	if !ps.reserve(a, 2) {
 		t.Fatal("reset should clear subscriptions")
 	}
-	if isPresenceSubscribable(types.NewJID("1", types.GroupServer)) {
-		t.Fatal("groups are not subscribable")
+	if !ps.has(a) || ps.has(b) {
+		t.Fatal("has should follow the reservations")
 	}
 }

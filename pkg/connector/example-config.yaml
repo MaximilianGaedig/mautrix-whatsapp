@@ -47,6 +47,17 @@ presence_max_subscriptions: 100
 presence_refresh_seconds: 240
 # Global limit of presence requests per second sent to the homeserver.
 presence_max_per_second: 5
+# Also subscribe to the presence of everyone in the groups you are in, not only of the people you
+# have a chat with. The official WhatsApp apps never do this: they subscribe to one person at a
+# time, when you open a chat or a profile, so this is a request pattern WhatsApp does not see from
+# its own clients and could hold against the account. The subscriptions go out one per second
+# after every (re)connect, at most 1000 of them, most recently read groups first. WhatsApp may
+# still not answer for people who are not in your contacts or hide their online status.
+presence_group_members: false
+# Tell the homeserver when WhatsApp says a contact was last seen, which Matrix presence has no
+# field for. Only a homeserver that keeps an activity log takes it (tuwunel's im.mxg.activity);
+# on any other the bridge stops after the first try. Contacts who hide their last seen are skipped.
+presence_last_active: false
 # Should WhatsApp status messages be bridged into a Matrix room?
 enable_status_broadcast: true
 # Should sending WhatsApp status messages be allowed?

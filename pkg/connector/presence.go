@@ -31,6 +31,7 @@ import (
 
 	"go.mau.fi/mautrix-whatsapp/pkg/presence"
 	"go.mau.fi/mautrix-whatsapp/pkg/waid"
+	"go.mau.fi/mautrix-whatsapp/pkg/wapresence"
 )
 
 // waOnlineTTL bounds how long an "available" presence is trusted without a
@@ -38,6 +39,10 @@ import (
 // but subscriptions die with the websocket, so a missed event must not leave
 // the ghost online forever.
 const waOnlineTTL = 30 * time.Minute
+
+// maxPresenceGroupMembers caps how many group members are subscribed to with
+// presence_group_members. At wapresence.MemberInterval a full list takes a quarter of an hour.
+const maxPresenceGroupMembers = 1000
 
 // mapWAPresence converts a whatsmeow presence event to Matrix presence.
 // WhatsApp only distinguishes online from offline; LastSeen is zero when the
@@ -59,6 +64,10 @@ func (wa *WhatsAppConnector) startPresence() {
 	}, presence.GhostSender(wa.Bridge))
 	log := wa.Bridge.Log.With().Str("component", "presence").Logger()
 	go wa.presence.Run(log.WithContext(wa.Bridge.BackgroundCtx))
+	if wa.Config.PresenceLastActive {
+		wa.seen = presence.NewSeenReporter(presence.GhostSeenSender(wa.Bridge))
+		go wa.seen.Run(log.WithContext(wa.Bridge.BackgroundCtx))
+	}
 }
 
 // ownPresence is the presence the bridge announces for the user. WhatsApp only
@@ -73,8 +82,12 @@ func (wa *WhatsAppClient) ownPresence() types.Presence {
 
 // noteActivity marks a user online for a while after they sent a message, read ours or typed
 // (presence.Manager.Activity), under both their phone number and LID ghost.
-func (wa *WhatsAppClient) noteActivity(ctx context.Context, jid types.JID, at time.Time) {
-	if wa.Main.presence == nil || jid.IsEmpty() || wa.IsOwnJID(jid) {
+func (wa *WhatsAppClient) noteActivity(ctx context.Context, rawEvt any) {
+	if wa.Main.presence == nil {
+		return
+	}
+	jid, at, ok := wapresence.ActivityOf(rawEvt, time.Now())
+	if !ok || wa.IsOwnJID(jid) {
 		return
 	}
 	wa.forEachGhostJID(ctx, jid, func(j types.JID) {
@@ -104,20 +117,18 @@ func (wa *WhatsAppClient) handleWAPresence(ctx context.Context, evt *events.Pres
 		return
 	}
 	st := mapWAPresence(evt, time.Now())
-	from := evt.From.ToNonAD()
-	wa.Main.presence.Update(string(waid.MakeUserID(from)), st)
+	// "Offline" is all Matrix presence can say of someone who has come and gone; when they were
+	// last here goes to the homeserver's activity log, where it keeps one.
+	lastSeen, hasLastSeen := wapresence.LastSeen(evt)
 	// Ghosts may exist under either the phone number or the LID, update both
-	// (the sender skips ghosts that don't exist).
-	var alt types.JID
-	switch from.Server {
-	case types.DefaultUserServer:
-		alt, _ = wa.GetStore().LIDs.GetLIDForPN(ctx, from)
-	case types.HiddenUserServer:
-		alt, _ = wa.GetStore().LIDs.GetPNForLID(ctx, from)
-	}
-	if !alt.IsEmpty() {
-		wa.Main.presence.Update(string(waid.MakeUserID(alt.ToNonAD())), st)
-	}
+	// (the senders skip ghosts that don't exist).
+	wa.forEachGhostJID(ctx, evt.From, func(j types.JID) {
+		id := string(waid.MakeUserID(j))
+		wa.Main.presence.Update(id, st)
+		if hasLastSeen {
+			wa.Main.seen.Note(id, lastSeen)
+		}
+	})
 }
 
 type presenceSubscriptions struct {
@@ -145,22 +156,25 @@ func (ps *presenceSubscriptions) release(jid types.JID) {
 	ps.lock.Unlock()
 }
 
+func (ps *presenceSubscriptions) has(jid types.JID) bool {
+	ps.lock.Lock()
+	defer ps.lock.Unlock()
+	_, ok := ps.jids[jid]
+	return ok
+}
+
 func (ps *presenceSubscriptions) reset() {
 	ps.lock.Lock()
 	ps.jids = nil
 	ps.lock.Unlock()
 }
 
-func isPresenceSubscribable(jid types.JID) bool {
-	return jid.Server == types.DefaultUserServer || jid.Server == types.HiddenUserServer
-}
-
 func (wa *WhatsAppClient) subscribeChatPresence(ctx context.Context, chat types.JID) {
-	if wa.Main.presence == nil || !isPresenceSubscribable(chat) || wa.IsOwnJID(chat) {
+	if wa.Main.presence == nil || !wapresence.IsSubscribable(chat) || wa.IsOwnJID(chat) {
 		return
 	}
 	chat = chat.ToNonAD()
-	if !wa.presenceSubs.reserve(chat, wa.Main.Config.PresenceMaxSubscriptions) {
+	if wa.presenceMemberSubs.has(chat) || !wa.presenceSubs.reserve(chat, wa.Main.Config.PresenceMaxSubscriptions) {
 		return
 	}
 	go func() {
@@ -171,14 +185,21 @@ func (wa *WhatsAppClient) subscribeChatPresence(ctx context.Context, chat types.
 	}()
 }
 
-// subscribeRecentDMPresences subscribes to the most recently read DMs of this
-// login after (re)connecting. Server-side subscriptions don't survive the
-// websocket, so the local set is reset first.
-func (wa *WhatsAppClient) subscribeRecentDMPresences(ctx context.Context) {
+// subscribePresences subscribes to the most recently read DMs of this login after
+// (re)connecting, and with presence_group_members to the members of its groups after them.
+// Server-side subscriptions don't survive the websocket, so the local sets are reset first and a
+// run still going from the connection before is stopped.
+func (wa *WhatsAppClient) subscribePresences(ctx context.Context) {
 	if wa.Main.presence == nil {
 		return
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if stopOld := wa.stopPresenceSubs.Swap(&cancel); stopOld != nil {
+		(*stopOld)()
+	}
 	wa.presenceSubs.reset()
+	wa.presenceMemberSubs.reset()
 	ups, err := wa.Main.Bridge.DB.UserPortal.GetAllForLogin(ctx, wa.UserLogin.UserLogin)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to get portals for presence subscriptions")
@@ -187,29 +208,73 @@ func (wa *WhatsAppClient) subscribeRecentDMPresences(ctx context.Context) {
 	slices.SortFunc(ups, func(a, b *database.UserPortal) int {
 		return cmp.Compare(b.LastRead.UnixMilli(), a.LastRead.UnixMilli())
 	})
-	var jids []types.JID
+	var dms []types.JID
+	var groups [][]types.JID
 	for _, up := range ups {
-		if len(jids) >= wa.Main.Config.PresenceMaxSubscriptions {
-			break
-		}
 		jid, err := waid.ParsePortalID(up.Portal.ID)
-		if err != nil || !isPresenceSubscribable(jid) || wa.IsOwnJID(jid) {
+		if err != nil {
 			continue
-		}
-		if wa.presenceSubs.reserve(jid.ToNonAD(), wa.Main.Config.PresenceMaxSubscriptions) {
-			jids = append(jids, jid.ToNonAD())
+		} else if wapresence.IsSubscribable(jid) {
+			dms = append(dms, jid)
+		} else if jid.Server == types.GroupServer && wa.Main.Config.PresenceGroupMembers {
+			if members := wa.groupMemberJIDs(ctx, up); len(members) > 0 {
+				groups = append(groups, members)
+			}
 		}
 	}
-	zerolog.Ctx(ctx).Debug().Int("count", len(jids)).Msg("Subscribing to DM presences")
-	for _, jid := range jids {
-		if ctx.Err() != nil || !wa.IsLoggedIn() {
+	steps := wapresence.Plan(dms, groups, wa.IsOwnJID, wa.Main.Config.PresenceMaxSubscriptions, maxPresenceGroupMembers)
+	zerolog.Ctx(ctx).Debug().Int("count", len(steps)).Int("groups", len(groups)).Msg("Subscribing to presences")
+	for _, step := range steps {
+		// Paced to avoid looking like a scraper, see wapresence.MemberInterval.
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(step.Wait):
+		}
+		if !wa.IsLoggedIn() || !wa.Client.IsConnected() {
 			return
 		}
-		if err := wa.Client.SubscribePresence(ctx, jid); err != nil {
-			wa.presenceSubs.release(jid)
-			zerolog.Ctx(ctx).Debug().Err(err).Stringer("jid", jid).Msg("Failed to subscribe to presence")
+		subs, limit := &wa.presenceSubs, wa.Main.Config.PresenceMaxSubscriptions
+		if step.Member {
+			if wa.presenceSubs.has(step.JID) {
+				continue // started a chat with us since the plan was made
+			}
+			subs, limit = &wa.presenceMemberSubs, maxPresenceGroupMembers
 		}
-		// Pace subscriptions to avoid looking like a scraper.
-		time.Sleep(250 * time.Millisecond)
+		if !subs.reserve(step.JID, limit) {
+			continue
+		}
+		if err := wa.Client.SubscribePresence(ctx, step.JID); err != nil {
+			subs.release(step.JID)
+			zerolog.Ctx(ctx).Debug().Err(err).Stringer("jid", step.JID).Msg("Failed to subscribe to presence")
+		}
 	}
+}
+
+// groupMemberJIDs returns the members of a group as its Matrix room shows them (the ghosts
+// joined to it), in a stable order. The room is asked instead of WhatsApp so that finding out
+// whom to subscribe to costs no request to WhatsApp at all.
+func (wa *WhatsAppClient) groupMemberJIDs(ctx context.Context, up *database.UserPortal) []types.JID {
+	portal, err := wa.Main.Bridge.GetExistingPortalByKey(ctx, up.Portal)
+	if err != nil || portal == nil || portal.MXID == "" || portal.RoomType == database.RoomTypeDM {
+		return nil
+	}
+	joined, err := wa.Main.Bridge.Matrix.GetMembers(ctx, portal.MXID)
+	if err != nil {
+		zerolog.Ctx(ctx).Warn().Err(err).Stringer("room_id", portal.MXID).Msg("Failed to get members for presence")
+		return nil
+	}
+	var members []types.JID
+	for userID, member := range joined {
+		if member == nil || member.Membership != event.MembershipJoin {
+			continue
+		}
+		if ghost, ok := wa.Main.Bridge.Matrix.ParseGhostMXID(userID); ok {
+			members = append(members, waid.ParseUserID(ghost))
+		}
+	}
+	slices.SortFunc(members, func(a, b types.JID) int {
+		return cmp.Or(cmp.Compare(a.Server, b.Server), cmp.Compare(a.User, b.User))
+	})
+	return members
 }

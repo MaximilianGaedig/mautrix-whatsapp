@@ -42,6 +42,7 @@ import (
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-whatsapp/pkg/waid"
+	"go.mau.fi/mautrix-whatsapp/pkg/wapresence"
 )
 
 func (wa *WhatsAppConnector) LoadUserLogin(ctx context.Context, login *bridgev2.UserLogin) error {
@@ -134,6 +135,11 @@ type WhatsAppClient struct {
 	pushNamesSynced    *exsync.Event
 	lastPresence       types.Presence
 	presenceSubs       presenceSubscriptions
+	// presenceMemberSubs holds the group members subscribed to with presence_group_members, apart
+	// from the chat partners so that they don't use up presence_max_subscriptions.
+	presenceMemberSubs presenceSubscriptions
+	// stopPresenceSubs ends the subscription run of the previous connection.
+	stopPresenceSubs atomic.Pointer[context.CancelFunc]
 
 	disableNewsletter bool
 
@@ -471,12 +477,13 @@ func (wa *WhatsAppClient) syncRemoteProfile(ctx context.Context, ghost *bridgev2
 
 func (wa *WhatsAppClient) HandleMatrixViewingChat(ctx context.Context, msg *bridgev2.MatrixViewingChat) error {
 	var presence types.Presence
-	if msg.Portal != nil || wa.Main.presence != nil {
-		// Presence bridging requires staying available, see ownPresence.
+	if msg.Portal != nil {
 		presence = types.PresenceAvailable
 	} else {
 		presence = types.PresenceUnavailable
 	}
+	// Presence bridging requires staying available.
+	presence = wapresence.OwnPresence(wa.Main.presence != nil, presence)
 
 	if wa.lastPresence != presence {
 		err := wa.updatePresence(ctx, presence)
@@ -519,6 +526,9 @@ func (wa *WhatsAppClient) HandleMatrixViewingChat(ctx context.Context, msg *brid
 }
 
 func (wa *WhatsAppClient) updatePresence(ctx context.Context, presence types.Presence) error {
+	// Every caller goes through here, so that none of them (the app state sync used to) can take
+	// the device unavailable and silently end presence bridging until the next reconnect.
+	presence = wapresence.OwnPresence(wa.Main.presence != nil, presence)
 	err := wa.Client.SendPresence(ctx, presence)
 	if err == nil {
 		wa.lastPresence = presence

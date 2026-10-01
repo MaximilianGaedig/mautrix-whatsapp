@@ -66,6 +66,8 @@ type WhatsAppConnector struct {
 	unmigratedDMs *exsync.Set[networkid.PortalKey]
 
 	presence *presence.Manager
+	// seen reports the last-seen times WhatsApp gives; nil unless presence_last_active is on.
+	seen *presence.SeenReporter
 }
 
 func init() {
