@@ -117,6 +117,9 @@ func (mc *MessageConverter) ToWhatsApp(
 			return nil, nil, err
 		}
 	case event.MessageType(event.EventSticker.Type), event.MsgImage, event.MsgVideo, event.MsgAudio, event.MsgFile:
+		if err := mc.checkViewOnce(content); err != nil {
+			return nil, nil, err
+		}
 		uploaded, thumbnail, mime, err := mc.reuploadFileToWhatsApp(ctx, content)
 		if err != nil {
 			return nil, nil, err
@@ -171,6 +174,22 @@ func (mc *MessageConverter) ToWhatsApp(
 }
 
 func (mc *MessageConverter) constructMediaMessage(
+	ctx context.Context,
+	content *event.MessageEventContent,
+	evt *event.Event,
+	uploaded *whatsmeow.UploadResponse,
+	thumbnail []byte,
+	contextInfo *waE2E.ContextInfo,
+	mime string,
+) *waE2E.Message {
+	msg := mc.constructPlainMediaMessage(ctx, content, evt, uploaded, thumbnail, contextInfo, mime)
+	if msg != nil && content.BeeperViewLimited != nil {
+		msg = wrapViewOnce(msg)
+	}
+	return msg
+}
+
+func (mc *MessageConverter) constructPlainMediaMessage(
 	ctx context.Context,
 	content *event.MessageEventContent,
 	evt *event.Event,

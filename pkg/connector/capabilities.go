@@ -11,6 +11,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/event"
 
+	"go.mau.fi/mautrix-whatsapp/pkg/msgconv"
 	"go.mau.fi/mautrix-whatsapp/pkg/waid"
 )
 
@@ -52,7 +53,7 @@ func (wa *WhatsAppConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilit
 }
 
 func (wa *WhatsAppConnector) GetBridgeInfoVersion() (info, caps int) {
-	return 1, 9
+	return 1, 10
 }
 
 const WAMaxFileSize = 2000 * 1024 * 1024
@@ -67,12 +68,15 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.whatsapp.capabilities.2026_07_22"
+	base := "fi.mau.whatsapp.capabilities.2026_10_02"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
 	return base
 }
+
+// WhatsApp lets a photo, a video or a voice message be opened once, and nothing else.
+var viewOnceTypes = []*event.BeeperViewLimitedMedia{&msgconv.ViewOnce}
 
 var whatsappCaps = &event.RoomFeatures{
 	ID: capID(),
@@ -103,6 +107,7 @@ var whatsappCaps = &event.RoomFeatures{
 			Caption:          event.CapLevelFullySupported,
 			MaxCaptionLength: MaxTextLength,
 			MaxSize:          WAMaxFileSize,
+			ViewLimitedTypes: viewOnceTypes,
 		},
 		event.MsgAudio: {
 			MimeTypes: map[string]event.CapabilitySupportLevel{
@@ -120,8 +125,9 @@ var whatsappCaps = &event.RoomFeatures{
 				"audio/ogg; codecs=opus": event.CapLevelFullySupported,
 				"audio/ogg":              event.CapLevelUnsupported,
 			},
-			Caption: event.CapLevelDropped,
-			MaxSize: WAMaxFileSize,
+			Caption:          event.CapLevelDropped,
+			MaxSize:          WAMaxFileSize,
+			ViewLimitedTypes: viewOnceTypes,
 		},
 		event.CapMsgSticker: {
 			MimeTypes: map[string]event.CapabilitySupportLevel{
@@ -153,6 +159,7 @@ var whatsappCaps = &event.RoomFeatures{
 			Caption:          event.CapLevelFullySupported,
 			MaxCaptionLength: MaxTextLength,
 			MaxSize:          WAMaxFileSize,
+			ViewLimitedTypes: viewOnceTypes,
 		},
 		event.MsgFile: {
 			MimeTypes: map[string]event.CapabilitySupportLevel{
@@ -210,13 +217,33 @@ func init() {
 	whatsappCAGCaps.ID = capID() + "+cag"
 	whatsappCAGCaps.Reply = event.CapLevelUnsupported
 	whatsappCAGCaps.Thread = event.CapLevelFullySupported
+	for _, caps := range []*event.RoomFeatures{whatsappCaps, whatsappDMCaps, whatsappCAGCaps} {
+		noViewOnceCaps[caps] = withoutViewOnce(caps)
+	}
+}
+
+// noViewOnceCaps holds the features of each kind of room for a bridge with disable_view_once set, which
+// refuses view-once media from Matrix as well.
+var noViewOnceCaps = make(map[*event.RoomFeatures]*event.RoomFeatures, 3)
+
+func withoutViewOnce(caps *event.RoomFeatures) *event.RoomFeatures {
+	caps = caps.Clone()
+	caps.ID += "+no_view_once"
+	for _, feat := range caps.File {
+		feat.ViewLimitedTypes = nil
+	}
+	return caps
 }
 
 func (wa *WhatsAppClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {
+	caps := whatsappCaps
 	if portal.Metadata.(*waid.PortalMetadata).CommunityAnnouncementGroup {
-		return whatsappCAGCaps
+		caps = whatsappCAGCaps
 	} else if portal.RoomType == database.RoomTypeDM {
-		return whatsappDMCaps
+		caps = whatsappDMCaps
 	}
-	return whatsappCaps
+	if wa.Main.Config.DisableViewOnce {
+		return noViewOnceCaps[caps]
+	}
+	return caps
 }
