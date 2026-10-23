@@ -141,7 +141,7 @@ type WhatsAppClient struct {
 	presenceMemberSubs presenceSubscriptions
 	// stopPresenceSubs ends the subscription run of the previous connection.
 	stopPresenceSubs atomic.Pointer[context.CancelFunc]
-	blocklistLock      sync.Mutex
+	blocklistLock    sync.Mutex
 
 	disableNewsletter bool
 
@@ -153,7 +153,7 @@ type WhatsAppClient struct {
 	lastMuseProfileRequest time.Time
 
 	// Armed pin expiry timers, by pinTimerKey.
-	pinTimers sync.Map
+	pinTimers                   sync.Map
 	onDemandHistorySyncLock     sync.Mutex
 	onDemandHistorySyncRequests map[types.JID]onDemandHistorySyncRequest
 }

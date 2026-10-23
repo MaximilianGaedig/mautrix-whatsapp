@@ -121,4 +121,3 @@ func (mc *MessageConverter) convertPollResultSnapshotMessage(ctx context.Context
 func (mc *MessageConverter) convertRequestPhoneNumberMessage(ctx context.Context, msg *waE2E.RequestPhoneNumberMessage) (*bridgev2.ConvertedMessagePart, *waE2E.ContextInfo) {
 	return noticePart("Asked for your phone number. Share it from the WhatsApp app."), msg.GetContextInfo()
 }
-

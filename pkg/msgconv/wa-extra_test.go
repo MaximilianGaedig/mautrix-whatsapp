@@ -73,4 +73,3 @@ func TestExtraMessageTypes(t *testing.T) {
 		})
 	}
 }
-
