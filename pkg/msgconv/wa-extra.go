@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/event"

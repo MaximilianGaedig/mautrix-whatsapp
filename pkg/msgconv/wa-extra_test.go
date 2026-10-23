@@ -2,7 +2,6 @@ package msgconv
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
