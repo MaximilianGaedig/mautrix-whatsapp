@@ -68,7 +68,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.whatsapp.capabilities.2026_10_02"
+	base := "fi.mau.whatsapp.capabilities.2026_10_24"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -205,6 +205,7 @@ var whatsappCaps = &event.RoomFeatures{
 
 var whatsappDMCaps *event.RoomFeatures
 var whatsappCAGCaps *event.RoomFeatures
+var whatsappNoteToSelfCaps *event.RoomFeatures
 
 func init() {
 	whatsappDMCaps = ptr.Clone(whatsappCaps)
@@ -212,12 +213,18 @@ func init() {
 	whatsappDMCaps.State = event.StateFeatureMap{
 		event.StateBeeperDisappearingTimer.Type: {Level: event.CapLevelFullySupported},
 	}
+	whatsappDMCaps.BlockUser = true
 	whatsappDMCaps.MemberActions = nil
+
+	whatsappNoteToSelfCaps = ptr.Clone(whatsappDMCaps)
+	whatsappNoteToSelfCaps.ID = capID() + "+self"
+	whatsappNoteToSelfCaps.BlockUser = false
+
 	whatsappCAGCaps = ptr.Clone(whatsappCaps)
 	whatsappCAGCaps.ID = capID() + "+cag"
 	whatsappCAGCaps.Reply = event.CapLevelUnsupported
 	whatsappCAGCaps.Thread = event.CapLevelFullySupported
-	for _, caps := range []*event.RoomFeatures{whatsappCaps, whatsappDMCaps, whatsappCAGCaps} {
+	for _, caps := range []*event.RoomFeatures{whatsappCaps, whatsappDMCaps, whatsappCAGCaps, whatsappNoteToSelfCaps} {
 		noViewOnceCaps[caps] = withoutViewOnce(caps)
 	}
 }
@@ -241,6 +248,9 @@ func (wa *WhatsAppClient) GetCapabilities(ctx context.Context, portal *bridgev2.
 		caps = whatsappCAGCaps
 	} else if portal.RoomType == database.RoomTypeDM {
 		caps = whatsappDMCaps
+		if jid, err := waid.ParsePortalID(portal.ID); err == nil && wa.IsOwnJID(jid) {
+			caps = whatsappNoteToSelfCaps
+		}
 	}
 	if wa.Main.Config.DisableViewOnce {
 		return noViewOnceCaps[caps]

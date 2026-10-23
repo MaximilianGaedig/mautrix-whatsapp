@@ -59,6 +59,8 @@ func (wa *WhatsAppConnector) LoadUserLogin(ctx context.Context, login *bridgev2.
 		pushNamesSynced:           exsync.NewEvent(),
 		appStateFullSyncAttempted: make(map[appstate.WAPatchName]time.Time),
 
+		onDemandHistorySyncRequests: make(map[types.JID]onDemandHistorySyncRequest),
+
 		disableNewsletter: store.BaseClientPayload.GetUserAgent().GetPlatform() == waWa6.ClientPayload_UserAgent_MACOS,
 	}
 	login.Client = w
@@ -119,7 +121,6 @@ type WhatsAppClient struct {
 	Calls     *waCallBridge
 	CallLog   *calllog.Log
 	Ringing   ringingCalls
-	blocked   blockedGhosts
 
 	historySyncWakeup  chan struct{}
 	stopLoops          atomic.Pointer[context.CancelFunc]
@@ -140,6 +141,7 @@ type WhatsAppClient struct {
 	presenceMemberSubs presenceSubscriptions
 	// stopPresenceSubs ends the subscription run of the previous connection.
 	stopPresenceSubs atomic.Pointer[context.CancelFunc]
+	blocklistLock    sync.Mutex
 
 	disableNewsletter bool
 
@@ -151,7 +153,9 @@ type WhatsAppClient struct {
 	lastMuseProfileRequest time.Time
 
 	// Armed pin expiry timers, by pinTimerKey.
-	pinTimers sync.Map
+	pinTimers                   sync.Map
+	onDemandHistorySyncLock     sync.Mutex
+	onDemandHistorySyncRequests map[types.JID]onDemandHistorySyncRequest
 }
 
 var (
