@@ -19,8 +19,10 @@ package msgconv
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/ptr"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/event"
@@ -62,4 +64,20 @@ func (mc *MessageConverter) convertContactMessage(ctx context.Context, msg *waE2
 	}
 
 	return
+}
+
+func (mc *MessageConverter) convertContactsArrayMessage(ctx context.Context, msg *waE2E.ContactsArrayMessage) (*bridgev2.ConvertedMessagePart, *waE2E.ContextInfo) {
+	name := msg.GetDisplayName()
+	if len(name) == 0 {
+		name = fmt.Sprintf("%d contacts", len(msg.GetContacts()))
+	}
+	vcards := make([]string, len(msg.GetContacts()))
+	for i, contact := range msg.GetContacts() {
+		vcards[i] = strings.TrimSpace(contact.GetVcard())
+	}
+	part, _ := mc.convertContactMessage(ctx, &waE2E.ContactMessage{
+		DisplayName: &name,
+		Vcard:       ptr.Ptr(strings.Join(vcards, "\n")),
+	})
+	return part, msg.GetContextInfo()
 }

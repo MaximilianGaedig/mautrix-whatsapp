@@ -57,8 +57,8 @@ func (mc *MessageConverter) msc1767ToWhatsApp(ctx context.Context, msg event.MSC
 }
 
 var (
-	errPollMissingQuestion = bridgev2.WrapErrorInStatus(errors.New("poll message is missing question")).WithIsCertain(true).WithErrorAsMessage().WithSendNotice(true).WithErrorReason(event.MessageStatusUnsupported)
-	errPollDuplicateOption = bridgev2.WrapErrorInStatus(errors.New("poll options must be unique")).WithIsCertain(true).WithErrorAsMessage().WithSendNotice(true).WithErrorReason(event.MessageStatusUnsupported)
+	errPollMissingQuestion = bridgev2.WrapErrorInStatus(errors.New("poll message is missing question")).WithIsCertain(true).WithErrorAsMessage().WithSendNotice(true).WithErrorReason(event.MessageStatusUnsupported).WithStatus(event.MessageStatusFail)
+	errPollDuplicateOption = bridgev2.WrapErrorInStatus(errors.New("poll options must be unique")).WithIsCertain(true).WithErrorAsMessage().WithSendNotice(true).WithErrorReason(event.MessageStatusUnsupported).WithStatus(event.MessageStatusFail)
 )
 
 func (mc *MessageConverter) PollStartToWhatsApp(
@@ -71,7 +71,7 @@ func (mc *MessageConverter) PollStartToWhatsApp(
 	if maxAnswers >= len(content.PollStart.Answers) || maxAnswers < 0 {
 		maxAnswers = 0
 	}
-	contextInfo := mc.generateContextInfo(ctx, replyTo, portal, nil, content.Mentions != nil && content.Mentions.Room)
+	contextInfo := mc.generateContextInfo(ctx, replyTo, content.RelatesTo, portal, nil, content.Mentions != nil && content.Mentions.Room)
 	var question string
 	question, contextInfo.MentionedJID = mc.msc1767ToWhatsApp(ctx, content.PollStart.Question, content.Mentions)
 	if len(question) == 0 {

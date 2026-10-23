@@ -148,6 +148,7 @@ func (wa *WhatsAppClient) downloadAndSaveWAHistorySyncData(ctx context.Context, 
 		return
 	}
 	if blob.GetSyncType() == waHistorySync.HistorySync_ON_DEMAND {
+		wa.finishOnDemandHistorySyncRequest(evt.GetPeerDataRequestSessionID())
 		wa.handleOnDemandHistorySync(ctx, blob)
 		if err = wa.Main.DB.HSNotif.Delete(ctx, rowid); err != nil {
 			log.Err(err).Msg("Failed to delete queued on-demand history sync notification")
@@ -629,7 +630,8 @@ func (wa *WhatsAppClient) convertHistorySyncMessages(
 	messages []*waWeb.WebMessageInfo,
 	explodeOnError bool,
 ) (*bridgev2.FetchMessagesResponse, error) {
-	if wa.Client == nil {
+	cli := wa.Client
+	if cli == nil {
 		return nil, bridgev2.ErrNotLoggedIn
 	}
 	oldestTS := messages[len(messages)-1].GetMessageTimestamp()
@@ -641,7 +643,7 @@ func (wa *WhatsAppClient) convertHistorySyncMessages(
 	slices.Reverse(chronological)
 	ctx = msgconv.WithAlbumBatch(ctx, msgconv.NewAlbumBatch(chronological))
 	for i, msg := range messages {
-		evt, err := wa.Client.ParseWebMessage(portalJID, msg)
+		evt, err := cli.ParseWebMessage(portalJID, msg)
 		if err != nil {
 			if explodeOnError {
 				// This should never happen because the info is already parsed once before being stored in the database
@@ -668,7 +670,7 @@ func (wa *WhatsAppClient) convertHistorySyncMessages(
 		}
 		isViewOnce := evt.IsViewOnce || evt.IsViewOnceV2 || evt.IsViewOnceV2Extension
 		converted, mediaReq := wa.convertHistorySyncMessage(
-			ctx, portal, &evt.Info, evt.Message, evt.RawMessage, isViewOnce, msg.Reactions,
+			ctx, cli, portal, &evt.Info, evt.Message, evt.RawMessage, isViewOnce, msg.Reactions,
 		)
 		// This is a hack to remove duplicates where the same message is inserted with both the LID and phone number sender
 		// TODO prevent those being inserted in the first place instead of hacking around it here
@@ -709,12 +711,28 @@ func (wa *WhatsAppClient) fetchMessagesFromPhone(ctx context.Context, portalJID 
 	if params.AnchorMessage == nil {
 		return nil, fmt.Errorf("anchor message is required to fetch messages from phone")
 	}
-	parsed, err := waid.ParseMessageID(params.AnchorMessage.ID)
+	anchor := params.AnchorMessage
+	parsed, err := waid.ParseMessageID(anchor.ID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse anchor message ID: %w", err)
+		anchor, err = wa.Main.Bridge.DB.Message.GetFirstPortalMessageExcludingIDPattern(ctx, params.Portal.PortalKey, "fake:%")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get first non-fake portal message: %w", err)
+		} else if anchor == nil {
+			return &bridgev2.FetchMessagesResponse{}, nil
+		}
+		parsed, err = waid.ParseMessageID(anchor.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse anchor message ID: %w", err)
+		}
 	}
 
 	msgID := wa.Client.GenerateMessageID()
+	if !wa.startOnDemandHistorySyncRequest(ctx, portalJID, msgID) {
+		return &bridgev2.FetchMessagesResponse{
+			HasMore: true,
+			Pending: true,
+		}, nil
+	}
 	reqData := wa.Client.BuildHistorySyncRequest(&types.MessageInfo{
 		MessageSource: types.MessageSource{
 			Chat:     portalJID,
@@ -723,7 +741,7 @@ func (wa *WhatsAppClient) fetchMessagesFromPhone(ctx context.Context, portalJID 
 			IsGroup:  parsed.Chat.Server == types.GroupServer,
 		},
 		ID:        parsed.ID,
-		Timestamp: params.AnchorMessage.Timestamp,
+		Timestamp: anchor.Timestamp,
 	}, 50)
 	zerolog.Ctx(ctx).Debug().
 		Str("request_msg_id", msgID).
@@ -736,12 +754,45 @@ func (wa *WhatsAppClient) fetchMessagesFromPhone(ctx context.Context, portalJID 
 		Peer: true,
 	})
 	if err != nil {
+		wa.onDemandHistorySyncLock.Lock()
+		delete(wa.onDemandHistorySyncRequests, portalJID)
+		wa.onDemandHistorySyncLock.Unlock()
 		return nil, fmt.Errorf("failed to send history sync request: %w", err)
 	}
 	return &bridgev2.FetchMessagesResponse{
 		HasMore: true,
 		Pending: true,
 	}, nil
+}
+
+type onDemandHistorySyncRequest struct {
+	ID     types.MessageID
+	SentAt time.Time
+}
+
+func (wa *WhatsAppClient) startOnDemandHistorySyncRequest(ctx context.Context, portalJID types.JID, msgID types.MessageID) bool {
+	wa.onDemandHistorySyncLock.Lock()
+	defer wa.onDemandHistorySyncLock.Unlock()
+	if req, inFlight := wa.onDemandHistorySyncRequests[portalJID]; inFlight {
+		zerolog.Ctx(ctx).Debug().
+			Str("in_flight_request_msg_id", req.ID).
+			Stringer("portal_jid", portalJID).
+			Time("sent_at", req.SentAt).
+			Msg("Not sending history sync request, previous request is still in flight")
+		return false
+	}
+	wa.onDemandHistorySyncRequests[portalJID] = onDemandHistorySyncRequest{ID: msgID, SentAt: time.Now()}
+	return true
+}
+
+func (wa *WhatsAppClient) finishOnDemandHistorySyncRequest(sessionID string) {
+	wa.onDemandHistorySyncLock.Lock()
+	defer wa.onDemandHistorySyncLock.Unlock()
+	for chatJID, req := range wa.onDemandHistorySyncRequests {
+		if req.ID == sessionID {
+			delete(wa.onDemandHistorySyncRequests, chatJID)
+		}
+	}
 }
 
 func (wa *WhatsAppClient) handleOnDemandHistorySync(ctx context.Context, blob *waHistorySync.HistorySync) {
@@ -809,7 +860,7 @@ func (wa *WhatsAppClient) handleOnDemandHistorySync(ctx context.Context, blob *w
 }
 
 func (wa *WhatsAppClient) convertHistorySyncMessage(
-	ctx context.Context, portal *bridgev2.Portal, info *types.MessageInfo, msg, rawMsg *waE2E.Message, isViewOnce bool, reactions []*waWeb.Reaction,
+	ctx context.Context, cli *whatsmeow.Client, portal *bridgev2.Portal, info *types.MessageInfo, msg, rawMsg *waE2E.Message, isViewOnce bool, reactions []*waWeb.Reaction,
 ) (*bridgev2.BackfillMessage, *wadb.MediaRequest) {
 	// New messages turn these into edits, but in backfill we only have the last version,
 	// so no need to do the edit thing. Instead, just unwrap the message.
@@ -820,7 +871,7 @@ func (wa *WhatsAppClient) convertHistorySyncMessage(
 	intent := wa.Main.Bridge.Bot
 	msgID := waid.MakeMessageIDWithAltSender(info.Chat, info.Sender, info.SenderAlt, info.ID)
 	wrapped := &bridgev2.BackfillMessage{
-		ConvertedMessage: wa.Main.MsgConv.ToMatrix(ctx, portal, wa.Client, intent, msg, rawMsg, info, isViewOnce, true, nil),
+		ConvertedMessage: wa.Main.MsgConv.ToMatrix(ctx, portal, cli, intent, msg, rawMsg, info, isViewOnce, true, nil),
 		Sender:           wa.makeEventSender(ctx, pickLID(info.Sender, info.SenderAlt)),
 		ID:               msgID,
 		TxnID:            networkid.TransactionID(msgID),
