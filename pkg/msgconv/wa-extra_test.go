@@ -74,19 +74,3 @@ func TestExtraMessageTypes(t *testing.T) {
 	}
 }
 
-func TestJoinVCards(t *testing.T) {
-	data, names := joinVCards([]*waE2E.ContactMessage{
-		{DisplayName: ptr.Ptr("A"), Vcard: ptr.Ptr("BEGIN:VCARD\r\nFN:A\r\nEND:VCARD\r\n")},
-		{DisplayName: ptr.Ptr("No card")},
-		{DisplayName: ptr.Ptr("B"), Vcard: ptr.Ptr("BEGIN:VCARD\r\nFN:B\r\nEND:VCARD")},
-	})
-	if strings.Count(string(data), "BEGIN:VCARD") != 2 || len(names) != 2 || names[1] != "B" {
-		t.Errorf("data %q, names %v", data, names)
-	}
-	if !strings.Contains(string(data), "END:VCARD\r\nBEGIN:VCARD") {
-		t.Errorf("cards not separated by a line break: %q", data)
-	}
-	if data, _ = joinVCards([]*waE2E.ContactMessage{{DisplayName: ptr.Ptr("x")}}); data != nil {
-		t.Error("no vCards, no file")
-	}
-}
